@@ -7,11 +7,12 @@ import (
 	"cc_template/router"
 	"embed"
 	"fmt"
-	"github.com/asdine/storm"
-	"github.com/clakeboy/golib/components"
-	"github.com/clakeboy/golib/utils"
 	"os"
 	"path"
+
+	"github.com/asdine/storm/v3"
+	"github.com/clakeboy/golib/components"
+	"github.com/clakeboy/golib/utils"
 )
 
 var sigs chan os.Signal

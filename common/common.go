@@ -4,7 +4,8 @@ import (
 	"cc_template/command"
 	"embed"
 	"fmt"
-	"github.com/asdine/storm"
+
+	"github.com/asdine/storm/v3"
 	"github.com/clakeboy/golib/components"
 	"github.com/clakeboy/golib/components/snowflake"
 )

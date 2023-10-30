@@ -2,7 +2,8 @@ package models
 
 import (
 	"cc_template/common"
-	"github.com/asdine/storm"
+
+	"github.com/asdine/storm/v3"
 )
 
 // UserData 用户数据
