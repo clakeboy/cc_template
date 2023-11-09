@@ -66,18 +66,3 @@ func YN(cond bool, yes string, no string) string {
 	}
 	return no
 }
-
-func ShowBg(bg int) string {
-	switch bg {
-	case 1:
-		return "r-bg"
-	case 2:
-		return "l-bg"
-	default:
-		return "p-bg"
-	}
-}
-
-func ShowVt(key string) string {
-	return models.ItemConditionMap[key]
-}

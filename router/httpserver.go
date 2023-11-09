@@ -1,14 +1,14 @@
 package router
 
 import (
-	"cc_template/controllers"
 	"cc_template/middles"
 	"embed"
 	"fmt"
+	"html/template"
+
 	"github.com/clakeboy/golib/components"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"html/template"
 )
 
 type HttpServer struct {
@@ -91,12 +91,12 @@ func (h *HttpServer) Init() {
 
 	//静态文件API接口
 	//h.server.Static("/backstage", "./assets/html")
-	h.server.SetFuncMap(template.FuncMap{
-		"format_date": controllers.FormatDate,
-		"cond_str":    controllers.YN,
-		"show_bg":     controllers.ShowBg,
-		"show_vt":     controllers.ShowVt,
-	})
+	// h.server.SetFuncMap(template.FuncMap{
+	// 	"format_date": controllers.FormatDate,
+	// 	"cond_str":    controllers.YN,
+	// 	"show_bg":     controllers.ShowBg,
+	// 	"show_vt":     controllers.ShowVt,
+	// })
 }
 
 // StartPprof 启动性能探测

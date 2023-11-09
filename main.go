@@ -5,7 +5,6 @@ import (
 	"cc_template/command"
 	"cc_template/common"
 	"cc_template/router"
-	"embed"
 	"fmt"
 	"os"
 	"path"
@@ -27,12 +26,13 @@ var (
 	GoVersion    string //Golang
 )
 
+// var templateFiles embed.FS
+//
 //go:embed assets/templates/*
-var templateFiles embed.FS
 var httpServer *router.HttpServer
 
 //go:embed assets/html/*
-var htmlFiles embed.FS
+// var htmlFiles embed.FS
 
 func main() {
 	initService()
@@ -85,11 +85,11 @@ func initService() {
 
 	//初始化模板文件
 	if command.CmdDebug {
-		httpServer.LoadTemplate("./assets/templates/**/*")
+		// httpServer.LoadTemplate("./assets/templates/**/*")
 		httpServer.StaticFs("./assets/html")
 	} else {
-		httpServer.TemplateEmbedFS(templateFiles, "assets/templates/**/*")
-		httpServer.StaticEmbedFS(htmlFiles)
+		// httpServer.TemplateEmbedFS(templateFiles, "assets/templates/**/*")
+		// httpServer.StaticEmbedFS(htmlFiles)
 	}
 }
 

@@ -16,3 +16,13 @@
 # vendor/
 
 .idea
+.vscode
+node_modules
+dist
+build
+db
+*.pid
+*.mongodb.js
+assets/html
+go.sum
+.DS_Store
