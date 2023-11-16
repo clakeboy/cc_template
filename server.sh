@@ -88,6 +88,26 @@ stop_server() {
     fi;
 }
 
+start_nohup_server() {
+    echo -n "Starting nohup mode cc_template.pid "
+
+    nohup $exec_prefix --pid $exec_pid --pprof --cross --config $exec_conf >> ./out.log 2>&1 &
+
+    if [ "$?" != 0 ] ; then
+        echo " failed"
+        exit 1
+    fi
+
+    wait_for_pid created $exec_pid
+
+    if [ -n "$try" ] ; then
+        echo " failed"
+        exit 1
+    else
+        echo " done"
+    fi
+}
+
 case "$1" in
     start)
         start_server
@@ -99,6 +119,10 @@ case "$1" in
 
     restart)
         stop_server
-        start_server
+        start_nohup_server
+    ;;
+
+    nohup)
+        start_nohup_server
     ;;
 esac
