@@ -4,7 +4,7 @@ path = ./version
 ARCH = amd64
 #linux darwin windows
 OS = linux
-OUTPUTDIR = ./build/
+OUTPUTDIR = ./publish/
 CC = clang
 CXX = clang++
 
