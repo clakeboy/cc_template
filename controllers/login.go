@@ -1,11 +1,11 @@
 package controllers
 
 import (
+	"cc_template/common"
+	"cc_template/components"
+	"cc_template/models"
 	"encoding/json"
 	"fmt"
-	"pcbx-btm/common"
-	"pcbx-btm/components"
-	"pcbx-btm/models"
 	"strconv"
 	"strings"
 
