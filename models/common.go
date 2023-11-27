@@ -11,8 +11,8 @@ type CommonModel[T any] struct {
 }
 
 type QueryResult[T any] struct {
-	List  []*T
-	Count int
+	List  []*T `json:"list"`
+	Count int  `json:"count"`
 }
 
 // SetOrder 设置排序方式
