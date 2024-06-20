@@ -43,7 +43,7 @@ func explainQueryCondition(conditions []*Condition) []q.Matcher {
 	return matcher
 }
 
-func AuthUserToLogin(c *gin.Context) *models.AccountData {
+func AuthAccountLogin(c *gin.Context) *models.AccountData {
 	user, err := components.AuthAccount(c)
 	if err != nil {
 		c.Redirect(http.StatusFound, "/front/def/login")

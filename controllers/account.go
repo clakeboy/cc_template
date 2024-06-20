@@ -3,28 +3,29 @@ package controllers
 import (
 	"cc_template/models"
 	"encoding/json"
-	"github.com/clakeboy/golib/utils"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"time"
+
+	"github.com/clakeboy/golib/utils"
+	"github.com/gin-gonic/gin"
 )
 
-// UserController 管理人员控制器
-type UserController struct {
+// AccountController 管理人员控制器
+type AccountController struct {
 	c *gin.Context
 }
 
-func NewUserController(c *gin.Context) *UserController {
-	user := AuthUserToLogin(c)
-	if user == nil || user.Manage != 1 {
+func NewAccountController(c *gin.Context) *AccountController {
+	Account := AuthAccountLogin(c)
+	if Account == nil || Account.Manage != 1 {
 		c.Redirect(http.StatusFound, "/404")
 		return nil
 	}
-	return &UserController{c: c}
+	return &AccountController{c: c}
 }
 
 // ActionQuery 查询
-func (m *UserController) ActionQuery(args []byte) (*models.QueryResult[models.UserData], error) {
+func (m *AccountController) ActionQuery(args []byte) (*models.QueryResult[models.AccountData], error) {
 	var params struct {
 		Query  []*Condition `json:"query"`
 		Page   int          `json:"page"`
@@ -36,7 +37,7 @@ func (m *UserController) ActionQuery(args []byte) (*models.QueryResult[models.Us
 		return nil, err
 	}
 	where := explainQueryCondition(params.Query)
-	model := models.NewUserModel(nil)
+	model := models.NewAccountModel(nil)
 	res, err := model.Query(params.Page, params.Number, where...)
 	if err != nil {
 		return nil, err
@@ -46,9 +47,9 @@ func (m *UserController) ActionQuery(args []byte) (*models.QueryResult[models.Us
 }
 
 // ActionSave 保存
-func (m *UserController) ActionSave(args []byte) error {
+func (m *AccountController) ActionSave(args []byte) error {
 	var params struct {
-		Data *models.UserData `json:"data"`
+		Data *models.AccountData `json:"data"`
 	}
 
 	err := json.Unmarshal(args, &params)
@@ -58,7 +59,7 @@ func (m *UserController) ActionSave(args []byte) error {
 
 	saveData := params.Data
 
-	model := models.NewUserModel(nil)
+	model := models.NewAccountModel(nil)
 
 	if saveData.Id == 0 {
 		saveData.CreatedDate = time.Now().Unix()
@@ -78,7 +79,7 @@ func (m *UserController) ActionSave(args []byte) error {
 	orgData.Manage = saveData.Manage
 	orgData.Init = saveData.Init
 	if saveData.Init == 0 {
-		err := model.UpdateField(&models.UserData{Id: saveData.Id}, "Init", 0)
+		err := model.UpdateField(&models.AccountData{Id: saveData.Id}, "Init", 0)
 		if err != nil {
 			return err
 		}
@@ -92,7 +93,7 @@ func (m *UserController) ActionSave(args []byte) error {
 }
 
 // ActionFind 查找用户
-func (m *UserController) ActionFind(args []byte) (*models.UserData, error) {
+func (m *AccountController) ActionFind(args []byte) (*models.AccountData, error) {
 	var params struct {
 		Id int `json:"id"`
 	}
@@ -102,7 +103,7 @@ func (m *UserController) ActionFind(args []byte) (*models.UserData, error) {
 		return nil, err
 	}
 
-	model := models.NewUserModel(nil)
+	model := models.NewAccountModel(nil)
 	data, err := model.GetById(params.Id)
 	if err != nil {
 		return nil, err
@@ -112,7 +113,7 @@ func (m *UserController) ActionFind(args []byte) (*models.UserData, error) {
 }
 
 // ActionDelete 删除
-func (m *UserController) ActionDelete(args []byte) error {
+func (m *AccountController) ActionDelete(args []byte) error {
 	var params struct {
 		Id int `json:"id"`
 	}
@@ -122,8 +123,8 @@ func (m *UserController) ActionDelete(args []byte) error {
 		return err
 	}
 
-	model := models.NewUserModel(nil)
-	err = model.DeleteStruct(&models.UserData{
+	model := models.NewAccountModel(nil)
+	err = model.DeleteStruct(&models.AccountData{
 		Id: params.Id,
 	})
 
