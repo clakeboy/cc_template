@@ -2,14 +2,15 @@ package components
 
 import (
 	"cc_template/models"
+	"strconv"
+
 	"github.com/clakeboy/golib/httputils"
 	"github.com/gin-gonic/gin"
-	"strconv"
 )
 
 var CookieName = "gb_acc"
 
-func AuthUser(c *gin.Context) (*models.UserData, error) {
+func AuthAccount(c *gin.Context) (*models.AccountData, error) {
 	cookie := c.MustGet("cookie").(*httputils.HttpCookie)
 	acc, err := cookie.Get(CookieName)
 
@@ -22,6 +23,6 @@ func AuthUser(c *gin.Context) (*models.UserData, error) {
 		return nil, err
 	}
 
-	model := models.NewUserModel(nil)
+	model := models.NewAccountModel(nil)
 	return model.GetById(id)
 }
