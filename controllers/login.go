@@ -37,7 +37,7 @@ func (l *LoginController) ActionAuth(args []byte) (*models.AccountData, error) {
 // ActionLogin 登录
 func (l *LoginController) ActionLogin(args []byte) (*models.AccountData, error) {
 	var params struct {
-		Username string `json:"Username"`
+		Username string `json:"username"`
 		Password string `json:"password"`
 		CaptKey  string `json:"capt_key"`
 	}
