@@ -3,10 +3,12 @@ package models
 import (
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/q"
+	"github.com/clakeboy/golib/utils"
 )
 
 type CommonModel[T any] struct {
-	Order string
+	Order      string
+	OrderField string
 	storm.Node
 }
 
@@ -16,7 +18,8 @@ type QueryResult[T any] struct {
 }
 
 // SetOrder 设置排序方式
-func (u *CommonModel[T]) SetOrder(ord string) {
+func (u *CommonModel[T]) SetOrder(field string, ord string) {
+	u.OrderField = field
 	u.Order = ord
 }
 
@@ -39,6 +42,10 @@ func (u *CommonModel[T]) Query(page, number int, where ...q.Matcher) (*QueryResu
 		return nil, err
 	}
 	query := u.Select(where...)
+
+	if u.OrderField != "" {
+		query.OrderBy(u.OrderField)
+	}
 	if u.Order == "DESC" {
 		query.Reverse()
 	}
@@ -56,6 +63,9 @@ func (u *CommonModel[T]) Query(page, number int, where ...q.Matcher) (*QueryResu
 func (u *CommonModel[T]) List(page, number int, where ...q.Matcher) ([]*T, error) {
 	var list []*T
 	query := u.Select(where...)
+	if u.OrderField != "" {
+		query.OrderBy(u.OrderField)
+	}
 	if u.Order == "DESC" {
 		query.Reverse()
 	}
@@ -64,4 +74,29 @@ func (u *CommonModel[T]) List(page, number int, where ...q.Matcher) ([]*T, error
 		return nil, err
 	}
 	return list, nil
+}
+
+// 更新所有条件
+func (u *CommonModel[T]) UpdateMany(data utils.M, where ...q.Matcher) error {
+	tx, err := u.Begin(true)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	query := u.Select(where...)
+	err = query.Each(new(T), func(i interface{}) error {
+		for k, v := range data {
+			err := tx.UpdateField(i, k, v)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
