@@ -12,7 +12,7 @@ func GetController(controllerName string, c *gin.Context) interface{} {
 		return controllers.NewDefaultController(c)
 	case "login":
 		return controllers.NewLoginController(c)
-	case "user":
+	case "acc":
 		return controllers.NewAccountController(c)
 	default:
 		return nil
