@@ -30,15 +30,18 @@ GO_VERSION = $(shell go version)
 #linux
 all:
 	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(OS) go build -x -v -ldflags "-s -w \
-    	-X 'main.AppName=$(APP_NAME)' \
-    	-X 'main.AppVersion=$(APP_VERSION)' \
-    	-X 'main.BuildVersion=$(BUILD_VERSION)' \
-    	-X 'main.BuildTime=$(BUILD_TIME)' \
-    	-X 'main.GitRevision=$(GIT_REVISION)' \
-    	-X 'main.GitBranch=$(GIT_BRANCH)' \
-    	-X 'main.GoVersion=$(GO_VERSION)' \
-    	" -o $(OUTPUTDIR)$(OUTNAME) main.go
-	upx -9 $(OUTPUTDIR)$(OUTNAME)
+		-X 'main.AppName=$(APP_NAME)' \
+		-X 'main.AppVersion=$(APP_VERSION)' \
+		-X 'main.BuildVersion=$(BUILD_VERSION)' \
+		-X 'main.BuildTime=$(BUILD_TIME)' \
+		-X 'main.GitRevision=$(GIT_REVISION)' \
+		-X 'main.GitBranch=$(GIT_BRANCH)' \
+		-X 'main.GoVersion=$(GO_VERSION)' \
+		" -o $(OUTPUTDIR)$(OUTNAME) main.go
+
+	@if [ "darwin" != "darwin" ]; then\
+		upx -9 $(OUTPUTDIR)$(OUTNAME); \
+	fi
 
 .PHONY : clean
 clean:

@@ -1,9 +1,12 @@
 package models
 
 import (
+	"reflect"
+
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/q"
 	"github.com/clakeboy/golib/utils"
+	"github.com/tidwall/gjson"
 )
 
 type CommonModel[T any] struct {
@@ -99,4 +102,45 @@ func (u *CommonModel[T]) UpdateMany(data utils.M, where ...q.Matcher) error {
 	}
 
 	return tx.Commit()
+}
+
+// 得到字段计算合
+func (u *CommonModel[T]) GetSum(field string, where ...q.Matcher) (float64, error) {
+	var count float64
+	query := u.Select(where...)
+	// query.Limit(500)
+	err := query.Each(new(T), func(i interface{}) error {
+		val := reflect.ValueOf(i).Elem().FieldByName(field)
+		switch val.Kind() {
+		case reflect.Int, reflect.Int64, reflect.Int32:
+			count += float64(val.Int())
+		case reflect.Float64:
+			count += val.Float()
+		}
+		return nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// 使用json字段名统计
+func (u *CommonModel[T]) GetSumRaw(field string, where ...q.Matcher) (float64, error) {
+	var count float64
+	ref := reflect.TypeOf((*T)(nil)).Elem()
+	query := u.Select(where...).Bucket(ref.Name())
+
+	err := query.RawEach(func(k, v []byte) error {
+		count += gjson.GetBytes(v, field).Num
+		return nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }

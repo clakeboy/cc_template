@@ -26,12 +26,13 @@ var (
 	GoVersion    string //Golang
 )
 
+// go:embed assets/templates/*
 // var templateFiles embed.FS
 //
-//go:embed assets/templates/*
+
 var httpServer *router.HttpServer
 
-//go:embed assets/html/*
+// go:embed assets/html/*
 // var htmlFiles embed.FS
 
 func main() {
