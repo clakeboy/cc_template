@@ -1,11 +1,17 @@
 package controllers
 
 import (
+	"archive/zip"
 	"bytes"
+	"cc_template/common"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"cc_template/common"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path"
 	"slices"
 	"sort"
 	"strings"
@@ -13,10 +19,14 @@ import (
 
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/index"
+	"github.com/clakeboy/golib/components"
 	"github.com/clakeboy/golib/utils"
 	"github.com/gin-gonic/gin"
 	"go.etcd.io/bbolt"
 )
+
+var tmpDir = "./temp"
+var exportLog = components.NewSysLog("db_export_")
 
 type DatabaseData struct {
 	Icon     string          `json:"icon"`     //图标
@@ -27,7 +37,7 @@ type DatabaseData struct {
 
 type Query struct {
 	Field string `json:"field"`
-	TYpe  string `json:"type"`
+	Type  string `json:"type"`
 	Value any    `json:"value"`
 	Index bool   `json:"index"`
 }
@@ -146,6 +156,51 @@ func (b *BoltdbManageController) ActionSave(args []byte) error {
 	}
 	err = setTableData(common.BDB, strings.Split(params.Table, "|"), key, []byte(params.Data))
 	return err
+}
+
+// 删除数据
+func (b *BoltdbManageController) ActionDelete(args []byte) error {
+	var params struct {
+		Table  string `json:"table"`   //table
+		IdList []int  `json:"id_list"` //数据ID
+	}
+
+	err := json.Unmarshal(args, &params)
+	if err != nil {
+		return err
+	}
+	tables := strings.Split(params.Table, "|")
+	err = common.BDB.Bolt.Update(func(tx *bbolt.Tx) error {
+		var b *bbolt.Bucket
+		for _, v := range tables {
+			if b != nil {
+				b = b.Bucket([]byte(v))
+			} else {
+				b = tx.Bucket([]byte(v))
+			}
+		}
+		if b == nil {
+			return fmt.Errorf("bucket not found")
+		}
+
+		for _, id := range params.IdList {
+			k, err := toBytes(id)
+			if err != nil {
+				return fmt.Errorf("生成KEY出错: %v", err)
+			}
+			err = b.Delete(k)
+			if err != nil {
+				return fmt.Errorf("删除数据出错: %v", err)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // 得到所有数据表列表
@@ -323,7 +378,7 @@ func setTableData(db *storm.DB, tableName []string, key, val []byte) error {
 
 // 得到表记录数
 func getTableCount(db *storm.DB, name []string) (int64, error) {
-	var count int64
+	var count int64 = 0
 	err := db.Bolt.View(func(tx *bbolt.Tx) error {
 		var b *bbolt.Bucket
 		for _, v := range name {
@@ -334,14 +389,23 @@ func getTableCount(db *storm.DB, name []string) (int64, error) {
 			}
 		}
 
-		b = b.Bucket([]byte("__storm_metadata"))
+		// b = b.Bucket([]byte("__storm_metadata"))
 
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
-
-		c := b.Get([]byte("Idcounter"))
-		count = int64(utils.BytesToInt(c))
+		c := b.Cursor()
+		for k, _ := c.First(); k != nil && !bytes.HasPrefix(k, []byte("__storm")); k, _ = c.Next() {
+			count++
+		}
+		// b.ForEach(func(k, v []byte) error {
+		// 	count++
+		// 	return nil
+		// })
+		// c := b.Get([]byte("Idcounter"))
+		// var err2 error
+		// count, err2 = numberfromb(c)
+		// return err2
 		return nil
 	})
 
@@ -423,7 +487,7 @@ func getDataType(data any) string {
 	}
 }
 
-func toBytes(key interface{}) ([]byte, error) {
+func toBytes(key any) ([]byte, error) {
 	if key == nil {
 		return nil, nil
 	}
@@ -452,4 +516,327 @@ func numbertob(v interface{}) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func numberfromb(raw []byte) (int64, error) {
+	r := bytes.NewReader(raw)
+	var to int64
+	err := binary.Read(r, binary.BigEndian, &to)
+	if err != nil {
+		return 0, err
+	}
+	return to, nil
+}
+
+// 导出数据对像
+type Export []*ExportTask
+
+// 添加数据
+func (e *Export) Add(item *ExportTask) {
+	bs := *e
+	if len(bs) > 10 {
+		rmItem := bs[0]
+		bs = append(bs[1:], item)
+		os.Remove(rmItem.FilePath)
+	} else {
+		bs = append(bs, item)
+	}
+	*e = bs
+}
+
+// 输出JSON数据
+func (e Export) JSON() ([]byte, error) {
+	return json.Marshal(e)
+}
+
+// JSON数据导入
+func (e Export) ParseJson(data []byte) error {
+	return json.Unmarshal(data, &e)
+}
+
+type ExportTask struct {
+	Name          string  `json:"name"`           //任务名称
+	Table         string  `json:"table"`          //任务表名
+	Query         []Query `json:"query"`          //参数
+	Status        string  `json:"status"`         //状态
+	FilePath      string  `json:"file_path"`      //导出文件位置
+	CreatedDate   int64   `json:"created_date"`   //创建时间
+	CompeleteDate int64   `json:"compelete_date"` //完成时间
+}
+
+// 导出数据为JSON
+func (b *BoltdbManageController) ActionExport(args []byte) ([]byte, error) {
+	var params struct {
+		Table  string  `json:"table"`  //table 名
+		Page   int     `json:"page"`   //页
+		Number int     `json:"number"` //记录数
+		Query  []Query `json:"query"`
+	}
+
+	err := json.Unmarshal(args, &params)
+	if err != nil {
+		return nil, err
+	}
+
+	go export(params.Table, params.Query, params.Page, params.Number)
+
+	return nil, nil
+}
+
+// 执行导出任务
+func export(table string, query []Query, page, number int) {
+	taskItem := &ExportTask{
+		Name:          "导出数据表:" + table,
+		Table:         table,
+		Query:         query,
+		Status:        "开始导出",
+		CreatedDate:   time.Now().Unix(),
+		CompeleteDate: 0,
+	}
+
+	var exportList Export
+
+	err := common.BDB.Get("export", "task", &exportList)
+	if err != nil && err != storm.ErrNotFound {
+		exportLog.Error(fmt.Errorf("打开导出任务数据列表出错：%v", err))
+		return
+	}
+	if err == storm.ErrNotFound {
+		exportList = Export{}
+	}
+	exportList.Add(taskItem)
+	err = common.BDB.Set("export", "task", exportList)
+	if err != nil {
+		exportLog.Error(fmt.Errorf("任务数据写入出错: %v", err))
+		return
+	}
+
+	tableArr := strings.Split(table, "|")
+
+	tableName := tableArr[len(tableArr)-1]
+	list, err := getTableData(common.BDB, tableArr, (page-1)*number, number, query)
+	if err != nil {
+		taskItem.Status = fmt.Sprintf("打开导出数据列表出错：%v", err)
+		common.BDB.Set("export", "task", exportList)
+		exportLog.Error(fmt.Errorf("打开导出数据列表出错：%v", err))
+		return
+	}
+	buf := new(bytes.Buffer)
+	zipFile := zip.NewWriter(buf)
+	defer zipFile.Close()
+	jsonFile, err := zipFile.Create(table + ".json")
+	if err != nil {
+		taskItem.Status = fmt.Sprintf("创建ZIP文件出错: %v", err)
+		common.BDB.Set("export", "task", exportList)
+		exportLog.Error(fmt.Errorf("创建ZIP文件出错: %v", err))
+		return
+	}
+	data, err := json.Marshal(list)
+	if err != nil {
+		taskItem.Status = fmt.Sprintf("创建ZIP文件出错: %v", err)
+		common.BDB.Set("export", "task", exportList)
+		exportLog.Error(fmt.Errorf("创建ZIP文件出错: %v", err))
+		return
+	}
+	jsonFile.Write(data)
+	zipFile.Close()
+	//写入文件
+	if !utils.PathExists(tmpDir) {
+		os.MkdirAll(tmpDir, 0755)
+	}
+	exportFile := fmt.Sprintf("%s/%s_%s.zip", tmpDir, tableName, time.Now().Format("20060102150405"))
+	err = os.WriteFile(exportFile, buf.Bytes(), 0755)
+	if err != nil {
+		taskItem.Status = fmt.Sprintf("写入ZIP文件出错: %v", err)
+		common.BDB.Set("export", "task", exportList)
+		exportLog.Error(fmt.Errorf("写入ZIP文件出错: %v", err))
+		return
+	}
+	taskItem.Status = "导出完成"
+	taskItem.FilePath = exportFile
+	taskItem.CompeleteDate = time.Now().Unix()
+	err = common.BDB.Set("export", "task", exportList)
+	if err != nil {
+		exportLog.Error(fmt.Errorf("任务数据写入出错: %v", err))
+	}
+}
+
+// 下载导出文件
+func (b *BoltdbManageController) ActionDown() {
+	tmp, ok := b.c.GetPostForm("f")
+	if !ok {
+		b.c.String(http.StatusNotFound, "")
+		return
+	}
+	fullPath := fmt.Sprintf("%s/%s", tmpDir, path.Base(tmp))
+	if !utils.PathExists(fullPath) {
+		b.c.JSON(http.StatusNotFound, utils.M{
+			"code": 1,
+			"msg":  "文件不存在",
+		})
+		return
+	}
+
+	b.c.FileAttachment(fullPath, path.Base(fullPath))
+}
+
+// 得到导出任务列表
+func (b *BoltdbManageController) ActionTaskList(args []byte) (Export, error) {
+	var exportList Export
+	err := common.BDB.Get("export", "task", &exportList)
+	if err != nil && err != storm.ErrNotFound {
+		return nil, fmt.Errorf("打开导出任务数据列表出错：%v", err)
+	}
+	slices.Reverse(exportList)
+	return exportList, nil
+}
+
+// 数据导入
+func (b *BoltdbManageController) ActionImport(args []byte) error {
+	var params struct {
+		Table []string  `json:"table"` //表名
+		Data  []utils.M `json:"data"`  //数据列表
+	}
+
+	err := json.Unmarshal(args, &params)
+	if err != nil {
+		return err
+	}
+
+	err = common.BDB.Bolt.Update(func(tx *bbolt.Tx) error {
+		var b *bbolt.Bucket
+		for _, v := range params.Table {
+			if b != nil {
+				b, err = b.CreateBucketIfNotExists([]byte(v))
+				// b = b.Bucket([]byte(v))
+			} else {
+				b, err = tx.CreateBucketIfNotExists([]byte(v))
+				// b = tx.Bucket([]byte(v))
+			}
+			if err != nil {
+				return fmt.Errorf("创建bucket出错: %v", err)
+			}
+		}
+		if b == nil {
+			return fmt.Errorf("bucket not found")
+		}
+
+		for _, item := range params.Data {
+			k, err := toBytes(item["id"])
+			if err != nil {
+				return fmt.Errorf("生成KEY出错: %v", err)
+			}
+			err = b.Put(k, item.ToJson())
+			if err != nil {
+				return fmt.Errorf("导入数据出错: %v", err)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("导入数据出错: %v", err)
+	}
+
+	return nil
+}
+
+// 上传zip文件导入
+func (b *BoltdbManageController) ActionUploadImport() error {
+	file, err := b.c.FormFile("file")
+	if err != nil {
+		return fmt.Errorf("获取上传文件出错: %v", err)
+	}
+	f, err := file.Open()
+	if err != nil {
+		return fmt.Errorf("打开上传文件出错: %v", err)
+	}
+
+	taskItem := &ExportTask{
+		Name:          "导入数据表:" + file.Filename,
+		Table:         "",
+		Query:         nil,
+		Status:        "开始导入",
+		CreatedDate:   time.Now().Unix(),
+		CompeleteDate: 0,
+	}
+
+	taskList, err := getTaskList()
+	if err != nil {
+		return fmt.Errorf("打开导出任务数据列表出错：%v", err)
+	}
+
+	taskList.Add(taskItem)
+	saveTaskList(taskList)
+	go importData(f, file.Size, taskItem, taskList)
+	return nil
+}
+
+func getTaskList() (Export, error) {
+	var exportList Export
+	err := common.BDB.Get("export", "task", &exportList)
+	if err != nil && err != storm.ErrNotFound {
+		return nil, fmt.Errorf("打开导出任务数据列表出错：%v", err)
+	}
+	if err == storm.ErrNotFound {
+		exportList = Export{}
+	}
+	return exportList, nil
+}
+
+func saveTaskList(task Export) error {
+	return common.BDB.Set("export", "task", task)
+}
+
+// 执行导入任务
+func importData(f multipart.File, size int64, taskInfo *ExportTask, task Export) {
+	// zipReader, err := zip.NewReader(f, size)
+	// if err != nil {
+	// 	exportLog.Error(fmt.Errorf("打开ZIP文件出错: %v", err))
+	// 	return
+	// }
+	// for _, zf := range zipReader.File {
+	// 	name := path.Base(zf.Name)
+	// }
+}
+
+// 下载并备份数据库文件
+func (b *BoltdbManageController) ActionBackupDownload() {
+	pathStr, name := path.Split(common.Conf.BDB.Path)
+	backPath := path.Join(pathStr, "backup", time.Now().Format("20060102"))
+	if !utils.PathExists(backPath) {
+		err := os.MkdirAll(backPath, 0755)
+		if err != nil {
+			exportLog.Error(fmt.Errorf("创建备份目录出错: %v", err))
+			return
+		}
+	}
+	zipFileName := path.Join(backPath, fmt.Sprintf("%s.zip", time.Now().Format("20060102150405")))
+	f, err := os.OpenFile(zipFileName, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		exportLog.Error(fmt.Errorf("打开ZIP文件出错: %v", err))
+		return
+	}
+	defer f.Close()
+	zipFile := zip.NewWriter(f)
+	defer zipFile.Close()
+
+	zf, err := zipFile.Create(name)
+	if err != nil {
+		exportLog.Error(fmt.Errorf("创建ZIP文件出错: %v", err))
+		return
+	}
+	dbFile, err := os.Open(common.Conf.BDB.Path)
+	if err != nil {
+		exportLog.Error(fmt.Errorf("打开数据库文件出错: %v", err))
+		return
+	}
+	defer dbFile.Close()
+	_, err = io.Copy(zf, dbFile)
+	if err != nil {
+		exportLog.Error(fmt.Errorf("写入ZIP文件出错: %v", err))
+		return
+	}
+	zipFile.Close()
+	b.c.FileAttachment(zipFileName, path.Base(zipFileName))
 }

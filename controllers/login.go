@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/clakeboy/golib/httputils"
 	"github.com/clakeboy/golib/utils"
@@ -37,7 +38,7 @@ func (l *LoginController) ActionAuth(args []byte) (*models.AccountData, error) {
 // ActionLogin 登录
 func (l *LoginController) ActionLogin(args []byte) (*models.AccountData, error) {
 	var params struct {
-		Username string `json:"username"`
+		Username string `json:"Username"`
 		Password string `json:"password"`
 		CaptKey  string `json:"capt_key"`
 	}
@@ -94,7 +95,6 @@ func (l *LoginController) ActionChangePassword(args []byte) error {
 		return err
 	}
 	orgData.Passwd = utils.EncodeMD5(params.Password)
-	orgData.Init = 1
 	return model.Update(orgData)
 }
 
@@ -193,4 +193,25 @@ func (l *LoginController) ActionCheckCaptcha(args []byte) (utils.M, error) {
 	return utils.M{
 		"code": code,
 	}, nil
+}
+
+// 初始化管理用户
+func (l *LoginController) ActionInit(args []byte) error {
+	model := models.NewAccountModel(nil)
+	data, err := model.GetByName("admin")
+	if data != nil {
+		return err
+	}
+	data = &models.AccountData{
+		Name:         "admin",
+		Passwd:       utils.EncodeMD5("123456"),
+		Manage:       1,
+		CreatedDate:  time.Now().Unix(),
+		ModifiedDate: time.Now().Unix(),
+	}
+	err = model.Save(data)
+	if err != nil {
+		return err
+	}
+	return nil
 }

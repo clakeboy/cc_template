@@ -46,6 +46,11 @@ func (m *AccountController) ActionQuery(args []byte) (*models.QueryResult[models
 	return res, nil
 }
 
+// 重建索引
+func (m *AccountController) ActionReindex() error {
+	return models.NewAccountModel(nil).ReIndex(new(models.AccountData))
+}
+
 // ActionSave 保存
 func (m *AccountController) ActionSave(args []byte) error {
 	var params struct {
@@ -63,9 +68,6 @@ func (m *AccountController) ActionSave(args []byte) error {
 
 	if saveData.Id == 0 {
 		saveData.CreatedDate = time.Now().Unix()
-		if saveData.Init == 0 {
-			saveData.Passwd = "1230123"
-		}
 		saveData.Passwd = utils.EncodeMD5(saveData.Passwd)
 		return model.Save(saveData)
 	}
@@ -77,14 +79,8 @@ func (m *AccountController) ActionSave(args []byte) error {
 
 	orgData.Name = saveData.Name
 	orgData.Manage = saveData.Manage
-	orgData.Init = saveData.Init
-	if saveData.Init == 0 {
-		err := model.UpdateField(&models.AccountData{Id: saveData.Id}, "Init", 0)
-		if err != nil {
-			return err
-		}
-		saveData.Passwd = "1230123"
-	}
+	orgData.GroupId = saveData.GroupId
+	orgData.GroupName = saveData.GroupName
 	if saveData.Passwd != "" {
 		orgData.Passwd = utils.EncodeMD5(saveData.Passwd)
 	}
