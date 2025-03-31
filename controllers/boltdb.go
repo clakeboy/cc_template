@@ -110,7 +110,7 @@ func (b *BoltdbManageController) ActionQuery(args []byte) (utils.M, error) {
 	}
 	var header HeaderList
 	var headList []string
-	list, err := getTableData(common.BDB, strings.Split(params.Table, "|"), (params.Page-1)*params.Number, params.Number, params.Query)
+	list, err := getTableData(common.BDB, strings.Split(params.Table, "|"), (params.Page-1)*params.Number, params.Number, params.Query, true)
 	for _, row := range list {
 		for k := range row {
 			if !slices.Contains(headList, k) {
@@ -203,6 +203,22 @@ func (b *BoltdbManageController) ActionDelete(args []byte) error {
 	return nil
 }
 
+// 删除整表
+func (b *BoltdbManageController) ActionDeleteBucket(args []byte) error {
+	var params struct {
+		Name string `json:"name"`
+	}
+	err := json.Unmarshal(args, &params)
+	if err != nil {
+		return err
+	}
+
+	err = common.BDB.Bolt.Update(func(tx *bbolt.Tx) error {
+		return tx.DeleteBucket([]byte(params.Name))
+	})
+	return err
+}
+
 // 得到所有数据表列表
 func (b *BoltdbManageController) ActionDatabases(args []byte) ([]*DatabaseData, error) {
 	var params struct {
@@ -280,7 +296,7 @@ func getChildData(db *storm.DB, name string) ([]string, error) {
 }
 
 // 得到表数据
-func getTableData(db *storm.DB, name []string, start, limit int, query []Query) ([]utils.M, error) {
+func getTableData(db *storm.DB, name []string, start, limit int, query []Query, reverse bool) ([]utils.M, error) {
 	if len(name) == 0 {
 		return nil, fmt.Errorf("name is empty")
 	}
@@ -298,10 +314,10 @@ func getTableData(db *storm.DB, name []string, start, limit int, query []Query) 
 		if b == nil {
 			return fmt.Errorf("bucket is nil")
 		}
-		c := &Cursor{C: b.Cursor(), Reverse: true}
+		c := &Cursor{C: b.Cursor(), Reverse: reverse}
 		if len(query) > 0 && query[0].Index {
 			rows, err := findData(b, query[0].Field, query[0].Value, &index.Options{
-				Reverse: true,
+				Reverse: reverse,
 				Skip:    start,
 				Limit:   limit,
 			})
@@ -614,7 +630,7 @@ func export(table string, query []Query, page, number int) {
 	tableArr := strings.Split(table, "|")
 
 	tableName := tableArr[len(tableArr)-1]
-	list, err := getTableData(common.BDB, tableArr, (page-1)*number, number, query)
+	list, err := getTableData(common.BDB, tableArr, (page-1)*number, number, query, false)
 	if err != nil {
 		taskItem.Status = fmt.Sprintf("打开导出数据列表出错：%v", err)
 		common.BDB.Set("export", "task", exportList)
@@ -624,7 +640,7 @@ func export(table string, query []Query, page, number int) {
 	buf := new(bytes.Buffer)
 	zipFile := zip.NewWriter(buf)
 	defer zipFile.Close()
-	jsonFile, err := zipFile.Create(table + ".json")
+	jsonFile, err := zipFile.Create(strings.Join(tableArr, "_") + ".json")
 	if err != nil {
 		taskItem.Status = fmt.Sprintf("创建ZIP文件出错: %v", err)
 		common.BDB.Set("export", "task", exportList)
@@ -720,8 +736,12 @@ func (b *BoltdbManageController) ActionImport(args []byte) error {
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
-
+		var top float64 = 0
 		for _, item := range params.Data {
+			tmp := item["id"].(float64)
+			if tmp > top {
+				top = tmp
+			}
 			k, err := toBytes(item["id"])
 			if err != nil {
 				return fmt.Errorf("生成KEY出错: %v", err)
@@ -731,6 +751,24 @@ func (b *BoltdbManageController) ActionImport(args []byte) error {
 				return fmt.Errorf("导入数据出错: %v", err)
 			}
 		}
+		meta := b.Bucket([]byte("__storm_metadata"))
+		if meta != nil {
+			count := meta.Get([]byte("Idcounter"))
+			counter, err := numberfromb(count)
+			if err != nil {
+				counter = 0
+			}
+			counter += int64(top)
+			counterb, _ := numbertob(counter)
+			meta.Put([]byte("Idcounter"), counterb)
+		} else {
+			meta, _ := b.CreateBucket([]byte("__storm_metadata"))
+			counter := int64(top)
+			counterb, _ := numbertob(counter)
+			meta.Put([]byte("Idcounter"), counterb)
+			meta.Put([]byte("codec"), []byte("json"))
+		}
+
 		return nil
 	})
 
