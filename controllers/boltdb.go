@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/asdine/storm/v3"
-	"github.com/asdine/storm/v3/index"
 	"github.com/clakeboy/golib/components"
 	"github.com/clakeboy/golib/utils"
+	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/index"
 	"github.com/gin-gonic/gin"
 	"go.etcd.io/bbolt"
 )

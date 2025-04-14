@@ -4,7 +4,7 @@ import (
 	"cc_template/common"
 	"slices"
 
-	"github.com/asdine/storm/v3"
+	"github.com/clakeboy/storm-rev"
 )
 
 // 后台菜单功能

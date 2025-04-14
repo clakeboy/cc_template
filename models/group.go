@@ -3,7 +3,7 @@ package models
 import (
 	"cc_template/common"
 
-	"github.com/asdine/storm/v3"
+	"github.com/clakeboy/storm-rev"
 )
 
 // 后台用户组

@@ -3,9 +3,9 @@ package models
 import (
 	"reflect"
 
-	"github.com/asdine/storm/v3"
-	"github.com/asdine/storm/v3/q"
 	"github.com/clakeboy/golib/utils"
+	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/q"
 	"github.com/tidwall/gjson"
 )
 

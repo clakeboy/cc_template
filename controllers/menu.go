@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/asdine/storm/v3"
+	"github.com/clakeboy/storm-rev"
 
-	"github.com/asdine/storm/v3/q"
+	"github.com/clakeboy/storm-rev/q"
 	"github.com/gin-gonic/gin"
 )
 

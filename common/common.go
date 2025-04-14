@@ -5,9 +5,9 @@ import (
 	"embed"
 	"fmt"
 
-	"github.com/asdine/storm/v3"
 	"github.com/clakeboy/golib/components"
 	"github.com/clakeboy/golib/components/snowflake"
+	"github.com/clakeboy/storm-rev"
 )
 
 var HtmlFiles embed.FS

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/asdine/storm/v3"
 	"github.com/clakeboy/golib/components/snowflake"
 	"github.com/clakeboy/golib/utils"
+	"github.com/clakeboy/storm-rev"
 	"go.etcd.io/bbolt"
 )
 
