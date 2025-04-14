@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/q"
 )
 
 // 后台菜单功能
@@ -22,7 +23,7 @@ type MenuData struct {
 	CreatedBy    string      `json:"created_by"`              //创建人
 	ModifiedDate int64       `json:"modified_date"`           //修改时间
 	ModifiedBy   string      `json:"modified_by"`             //修改人
-	Child        []*MenuData `json:"child"`                   //子菜单项，主要用于数据显示
+	Children     []*MenuData `json:"children"`                //子菜单项，主要用于数据显示
 }
 
 // 表名
@@ -58,7 +59,11 @@ func (m *MenuModel) GetByName(name string) (*MenuData, error) {
 // 通过父ID拿到列表
 func (m *MenuModel) GetByParentId(parentId int, filter []int) ([]*MenuData, error) {
 	var data []*MenuData
-	err := m.Find("ParentId", parentId, &data)
+	var err error
+	m.Order = "ASC"
+	m.OrderField = "Sort"
+	data, err = m.List(1, 100, q.Eq("ParentId", parentId))
+	// err := m.Find("ParentId", parentId, &data)
 	if err != nil {
 		return nil, err
 	}

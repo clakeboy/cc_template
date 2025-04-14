@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/clakeboy/golib/httputils"
 	"github.com/clakeboy/golib/utils"
@@ -195,23 +194,33 @@ func (l *LoginController) ActionCheckCaptcha(args []byte) (utils.M, error) {
 	}, nil
 }
 
-// 初始化管理用户
-func (l *LoginController) ActionInit(args []byte) error {
-	model := models.NewAccountModel(nil)
-	data, err := model.GetByName("admin")
-	if data != nil {
-		return err
-	}
-	data = &models.AccountData{
-		Name:         "admin",
-		Passwd:       utils.EncodeMD5("123456"),
-		Manage:       1,
-		CreatedDate:  time.Now().Unix(),
-		ModifiedDate: time.Now().Unix(),
-	}
-	err = model.Save(data)
+// 获取用户菜单
+func (l *LoginController) ActionAuthMenu() ([]*models.MenuData, error) {
+	Account, err := components.AuthAccount(l.c)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+
+	groupModel := models.NewGroupModel(nil)
+	group, err := groupModel.GetById(Account.GroupId)
+	if err != nil {
+		return nil, fmt.Errorf("用户组不存在,%v", err)
+	}
+	var list []*models.MenuData
+	menuObj, err := common.MemCache.Get("grp_" + group.Name)
+	if err != nil {
+		menuModel := models.NewMenuModel(nil)
+		list, err = menuModel.GetByParentId(0, group.MenuList)
+		if err != nil {
+			return nil, fmt.Errorf("无法取得主列表，%v", err)
+		}
+		for _, v := range list {
+			v.Children, _ = menuModel.GetByParentId(v.Id, group.MenuList)
+		}
+		common.MemCache.Set("grp_"+group.Name, list, -1)
+	} else {
+		list = menuObj.([]*models.MenuData)
+	}
+
+	return list, nil
 }

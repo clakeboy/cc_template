@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/clakeboy/storm-rev"
-
 	"github.com/clakeboy/storm-rev/q"
 	"github.com/gin-gonic/gin"
 )
@@ -60,7 +59,7 @@ func (m *MenuController) getChildMenu(menu *models.MenuData, model *models.MenuM
 	if err != nil {
 		return
 	}
-	menu.Child = child
+	menu.Children = child
 	for _, v := range child {
 		m.getChildMenu(v, model, filter)
 	}
