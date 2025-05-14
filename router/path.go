@@ -14,6 +14,14 @@ func GetController(controllerName string, c *gin.Context) interface{} {
 		return controllers.NewLoginController(c)
 	case "acc":
 		return controllers.NewAccountController(c)
+	case "group":
+		return controllers.NewGroupController(c)
+	case "menu":
+		return controllers.NewMenuController(c)
+	case "bolt":
+		return controllers.NewBoltdbManageController(c)
+	case "setup":
+		return controllers.NewSetupController(c)
 	default:
 		return nil
 	}

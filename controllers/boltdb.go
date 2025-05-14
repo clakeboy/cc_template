@@ -640,7 +640,7 @@ func export(table string, query []Query, page, number int) {
 	buf := new(bytes.Buffer)
 	zipFile := zip.NewWriter(buf)
 	defer zipFile.Close()
-	jsonFile, err := zipFile.Create(strings.Join(tableArr, "_") + ".json")
+	jsonFile, err := zipFile.Create(strings.Join(tableArr, "-") + ".json")
 	if err != nil {
 		taskItem.Status = fmt.Sprintf("创建ZIP文件出错: %v", err)
 		common.BDB.Set("export", "task", exportList)
