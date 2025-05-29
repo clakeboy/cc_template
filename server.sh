@@ -9,7 +9,7 @@
 # Short-Description: starts cc_template
 # Description:       starts the cc_template generate service
 ### END INIT INFO
-prefix=`pwd`
+prefix=$(pwd)
 exec_prefix=${prefix}/cc_template
 pid_file=${prefix}/cc_template.pid
 conf_file=${prefix}/main.conf
@@ -17,7 +17,7 @@ conf_file=${prefix}/main.conf
 wait_for_pid () {
     try=0
 
-    while test $try -lt 35 ; do
+    while test "$try" -lt 35 ; do
 
         case "$1" in
             'created')
@@ -35,8 +35,8 @@ wait_for_pid () {
             ;;
         esac
 
-        echo -n .
-        try=`expr $try + 1`
+        printf "."
+        try=$($try + 1)
         sleep 1
 
     done
@@ -44,21 +44,22 @@ wait_for_pid () {
 }
 
 start_server() {
-    if [ -r $pid_file ] ; then
+    if [ -r "$pid_file" ] ; then
         echo "cc_template is running"
         exit 1
     fi
 
-    echo -n "Starting cc_template "
+    echo "Starting cc_template "
 
-    $exec_prefix --pprof --cross --config $conf_file --pid $pid_file &
+    $exec_prefix --pprof --cross --config "$conf_file" --pid "$pid_file" &
 
-    if [ "$?" != 0 ] ; then
+    if ! $exec_prefix --pprof --cross --config "$conf_file" --pid "$pid_file" &
+    then
         echo " failed"
         exit 1
     fi
 
-    wait_for_pid created $pid_file
+    wait_for_pid created "$pid_file"
 
     if [ -n "$try" ] ; then
         echo " failed"
@@ -69,16 +70,16 @@ start_server() {
 }
 
 stop_server() {
-    echo -n "Gracefully shutting down cc_template "
+    echo "Gracefully shutting down cc_template "
 
-    if [ ! -r $pid_file ] ; then
+    if [ ! -r "$pid_file" ] ; then
         echo "warning, no pid file found - cc_template is not running ?"
         exit 1
     fi
 
-    kill -QUIT `cat $pid_file`
+    kill -QUIT "$pid_file"
 
-    wait_for_pid removed $pid_file
+    wait_for_pid removed "$pid_file"
 
     if [ -n "$try" ] ; then
         echo " failed. Use force-quit"
@@ -89,16 +90,15 @@ stop_server() {
 }
 
 start_nohup_server() {
-    echo -n "Starting nohup mode cc_template.pid "
+    echo "Starting nohup mode cc_template.pid "
 
-    nohup $exec_prefix --pid $exec_pid --pprof --cross --config $exec_conf >> ./out.log 2>&1 &
-
-    if [ "$?" != 0 ] ; then
+    if ! nohup "$exec_prefix" --pid "$pid_file" --pprof --cross --config "$conf_file" >> ./out.log 2>&1 &
+    then
         echo " failed"
         exit 1
     fi
 
-    wait_for_pid created $exec_pid
+    wait_for_pid created "$pid_file"
 
     if [ -n "$try" ] ; then
         echo " failed"
