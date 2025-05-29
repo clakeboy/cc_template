@@ -39,7 +39,7 @@ all:
 		-X 'main.GoVersion=$(GO_VERSION)' \
 		" -o $(OUTPUTDIR)$(OUTNAME) main.go
 
-	@if [ "darwin" != "darwin" ]; then\
+	@if [ "$(OS)" != "darwin" ]; then\
 		upx -9 $(OUTPUTDIR)$(OUTNAME); \
 	fi
 
