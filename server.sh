@@ -17,7 +17,7 @@ conf_file=${prefix}/main.conf
 wait_for_pid () {
     try=0
 
-    while test "$try" -lt 35 ; do
+    while test $try -lt 35 ; do
 
         case "$1" in
             'created')
@@ -36,7 +36,7 @@ wait_for_pid () {
         esac
 
         printf "."
-        try=$($try + 1)
+        try=$((try + 1))
         sleep 1
 
     done
@@ -49,31 +49,31 @@ start_server() {
         exit 1
     fi
 
-    echo "Starting cc_template "
+    printf "Starting cc_template "
 
     $exec_prefix --pprof --cross --config "$conf_file" --pid "$pid_file" &
 
     if ! $exec_prefix --pprof --cross --config "$conf_file" --pid "$pid_file" &
     then
-        echo " failed"
+        printf " failed \n"
         exit 1
     fi
 
     wait_for_pid created "$pid_file"
 
     if [ -n "$try" ] ; then
-        echo " failed"
+        printf " failed \n"
         exit 1
     else
-        echo " done"
+        printf " done \n"
     fi
 }
 
 stop_server() {
-    echo "Gracefully shutting down cc_template "
+    printf "Gracefully shutting down cc_template "
 
     if [ ! -r "$pid_file" ] ; then
-        echo "warning, no pid file found - cc_template is not running ?"
+        printf "warning, no pid file found - cc_template is not running ? \n"
         exit 1
     fi
 
@@ -82,29 +82,29 @@ stop_server() {
     wait_for_pid removed "$pid_file"
 
     if [ -n "$try" ] ; then
-        echo " failed. Use force-quit"
+        printf " failed. Use force-quit \n"
         exit 1
     else
-        echo " done"
+        printf " done \n"
     fi;
 }
 
 start_nohup_server() {
-    echo "Starting nohup mode cc_template.pid "
+    printf "Starting nohup mode cc_template "
 
     if ! nohup "$exec_prefix" --pid "$pid_file" --pprof --cross --config "$conf_file" >> ./out.log 2>&1 &
     then
-        echo " failed"
+        printf " failed \n"
         exit 1
     fi
 
     wait_for_pid created "$pid_file"
 
     if [ -n "$try" ] ; then
-        echo " failed"
+        printf " failed \n"
         exit 1
     else
-        echo " done"
+        printf " done \n"
     fi
 }
 
