@@ -51,10 +51,9 @@ start_server() {
 
     printf "Starting cc_template "
 
-    $exec_prefix --pprof --cross --config "$conf_file" --pid "$pid_file" &
+    opts=$($exec_prefix --pprof --cross --config "$conf_file" --pid "$pid_file" &)
 
-    if ! $exec_prefix --pprof --cross --config "$conf_file" --pid "$pid_file" &
-    then
+    if ! $opts ; then
         printf " failed \n"
         exit 1
     fi
@@ -92,8 +91,9 @@ stop_server() {
 start_nohup_server() {
     printf "Starting nohup mode cc_template "
 
-    if ! nohup "$exec_prefix" --pid "$pid_file" --pprof --cross --config "$conf_file" >> ./out.log 2>&1 &
-    then
+    opts=$(nohup "$exec_prefix" --pid "$pid_file" --pprof --cross --config "$conf_file" >> ./out.log 2>&1 &)
+
+    if ! $opts ; then
         printf " failed \n"
         exit 1
     fi
