@@ -56,7 +56,6 @@ func (s *SetupController) ActionInit(args []byte) error {
 
 	grpModel := models.NewGroupModel(nil)
 	err = grpModel.Save(&models.GroupData{
-		Id:          1,
 		Name:        "admin",
 		MenuList:    []int{1, 2, 3, 4, 5, 6, 7},
 		CreatedDate: time.Now().Unix(),
@@ -107,6 +106,6 @@ func initMenu() error {
 			return fmt.Errorf("初始化菜单出错 %v", err)
 		}
 	}
-
+	menuModel.Reindex()
 	return nil
 }

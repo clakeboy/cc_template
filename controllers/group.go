@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"cc_template/common"
 	"cc_template/models"
 	"encoding/json"
 	"net/http"
@@ -73,6 +74,9 @@ func (g *GroupController) ActionSave(args []byte) error {
 	orgData.ModifiedBy = g.acc.Name
 	orgData.ModifiedDate = time.Now().Unix()
 	err = model.Update(orgData)
+	if err != nil {
+		common.MemCache.Delete("grp_" + orgData.Name)
+	}
 	return err
 }
 

@@ -144,3 +144,8 @@ func (u *CommonModel[T]) GetSumRaw(field string, where ...q.Matcher) (float64, e
 
 	return count, nil
 }
+
+// 重建索引
+func (u *CommonModel[T]) Reindex() error {
+	return u.RebuildIndex(new(T))
+}
