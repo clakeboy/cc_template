@@ -1,7 +1,9 @@
 package models
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/clakeboy/golib/utils"
 	"github.com/clakeboy/storm-rev"
@@ -106,24 +108,24 @@ func (u *CommonModel[T]) UpdateMany(data utils.M, where ...q.Matcher) error {
 
 // 得到字段计算合
 func (u *CommonModel[T]) GetSum(field string, where ...q.Matcher) (float64, error) {
+	tf := reflect.TypeOf((*T)(nil)).Elem()
+	var jsonName string
+	if fd, ok := tf.FieldByName(field); ok {
+		jsonName = strings.Split(fd.Tag.Get("json"), ",")[0]
+	} else {
+		return 0, fmt.Errorf("字段不存在")
+	}
+
 	var count float64
 	query := u.Select(where...)
-	// query.Limit(500)
-	err := query.Each(new(T), func(i interface{}) error {
-		val := reflect.ValueOf(i).Elem().FieldByName(field)
-		switch val.Kind() {
-		case reflect.Int, reflect.Int64, reflect.Int32:
-			count += float64(val.Int())
-		case reflect.Float64:
-			count += val.Float()
-		}
+	err := query.Each(new(T), func(item any) error {
+		count += gjson.GetBytes(item.([]byte), jsonName).Num
 		return nil
 	})
 
 	if err != nil {
 		return 0, err
 	}
-
 	return count, nil
 }
 
