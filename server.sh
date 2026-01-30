@@ -76,7 +76,7 @@ stop_server() {
         exit 1
     fi
 
-    kill -QUIT "$pid_file"
+    kill -QUIT "$(cat "$pid_file")"
 
     wait_for_pid removed "$pid_file"
 

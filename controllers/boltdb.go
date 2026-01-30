@@ -7,11 +7,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -838,22 +838,20 @@ func importData(f multipart.File, size int64, taskInfo *ExportTask, task Export)
 	// }
 }
 
-// 下载并备份数据库文件
-func (b *BoltdbManageController) ActionBackupDownload() {
+// 备份当前数据库文件
+func (b *BoltdbManageController) ActionBackupCurrent() error {
 	pathStr, name := path.Split(common.Conf.BDB.Path)
 	backPath := path.Join(pathStr, "backup", time.Now().Format("20060102"))
 	if !utils.PathExists(backPath) {
 		err := os.MkdirAll(backPath, 0755)
 		if err != nil {
-			exportLog.Error(fmt.Errorf("创建备份目录出错: %v", err))
-			return
+			return fmt.Errorf("创建备份目录出错: %v", err)
 		}
 	}
 	zipFileName := path.Join(backPath, fmt.Sprintf("%s.zip", time.Now().Format("20060102150405")))
 	f, err := os.OpenFile(zipFileName, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
-		exportLog.Error(fmt.Errorf("打开ZIP文件出错: %v", err))
-		return
+		return fmt.Errorf("打开ZIP文件出错: %v", err)
 	}
 	defer f.Close()
 	zipFile := zip.NewWriter(f)
@@ -861,20 +859,73 @@ func (b *BoltdbManageController) ActionBackupDownload() {
 
 	zf, err := zipFile.Create(name)
 	if err != nil {
-		exportLog.Error(fmt.Errorf("创建ZIP文件出错: %v", err))
-		return
+		return fmt.Errorf("创建ZIP文件出错: %v", err)
 	}
-	dbFile, err := os.Open(common.Conf.BDB.Path)
+	err = common.BDB.Bolt.View(func(tx *bbolt.Tx) error {
+		_, err := tx.WriteTo(zf)
+		return err
+	})
 	if err != nil {
-		exportLog.Error(fmt.Errorf("打开数据库文件出错: %v", err))
-		return
-	}
-	defer dbFile.Close()
-	_, err = io.Copy(zf, dbFile)
-	if err != nil {
-		exportLog.Error(fmt.Errorf("写入ZIP文件出错: %v", err))
-		return
+		return fmt.Errorf("写入ZIP文件出错: %v", err)
 	}
 	zipFile.Close()
-	b.c.FileAttachment(zipFileName, path.Base(zipFileName))
+	return nil
+}
+
+// 下载现有备份文件
+func (b *BoltdbManageController) ActionDownloadBackup() {
+	filePath := b.c.Query("f")
+	if filePath == "" {
+		b.c.JSON(400, gin.H{"error": "缺少文件路径参数"})
+		return
+	}
+	if !utils.PathExists(filePath) {
+		b.c.JSON(404, gin.H{"error": "文件不存在"})
+		return
+	}
+	b.c.FileAttachment(filePath, path.Base(filePath))
+}
+
+type BackupFileInfo struct {
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Size       int64  `json:"size"`
+	ModifyTime int64  `json:"modify_time"`
+}
+
+func (b *BoltdbManageController) ActionBackupList() ([]BackupFileInfo, error) {
+	pathStr, _ := path.Split(common.Conf.BDB.Path)
+	backPath := path.Join(pathStr, "backup")
+	if !utils.PathExists(backPath) {
+		return []BackupFileInfo{}, nil
+	}
+	var list []BackupFileInfo
+	err := filepath.Walk(backPath, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".zip") {
+			relPath, _ := filepath.Rel(pathStr, filePath)
+			list = append(list, BackupFileInfo{
+				Name:       info.Name(),
+				Path:       relPath,
+				Size:       info.Size(),
+				ModifyTime: info.ModTime().Unix(),
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("遍历备份目录出错: %v", err)
+	}
+	slices.SortFunc(list, func(a, b BackupFileInfo) int {
+		if b.ModifyTime > a.ModifyTime {
+			return 1
+		}
+		if b.ModifyTime < a.ModifyTime {
+			return -1
+		}
+		return 0
+	})
+	return list, nil
 }

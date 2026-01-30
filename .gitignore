@@ -27,3 +27,5 @@ assets/html
 go.sum
 .DS_Store
 publish
+temp
+cc_react

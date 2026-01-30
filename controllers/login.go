@@ -114,6 +114,8 @@ func (l *LoginController) ActionGetCaptchaData(args []byte) (utils.M, error) {
 		capt.SetRangFontSize(captcha.RangeVal{Min: 32, Max: 38})
 	} else {
 		capt.SetRangChars(*captcha.GetCaptchaDefaultChars())
+		capt.SetRangFontSize(captcha.RangeVal{Min: 40, Max: 42})
+		capt.SetRangCheckFontSize(captcha.RangeVal{Min: 32, Max: 38})
 	}
 	dots, b64, tb64, key, err := capt.Generate()
 	if err != nil {
