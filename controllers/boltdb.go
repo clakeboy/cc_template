@@ -838,38 +838,147 @@ func importData(f multipart.File, size int64, taskInfo *ExportTask, task Export)
 	// }
 }
 
-// 备份当前数据库文件
+// 备份任务类型
+type BackupTask struct {
+	Name         string `json:"name"`          // 任务名称
+	Status       string `json:"status"`        // 状态
+	FilePath     string `json:"file_path"`     // 备份文件路径
+	FileName     string `json:"file_name"`     // 备份文件名
+	Size         int64  `json:"size"`          // 文件大小
+	CreatedDate  int64  `json:"created_date"`  // 创建时间
+	CompleteDate int64  `json:"complete_date"` // 完成时间
+}
+
+type BackupTaskList []*BackupTask
+
+// 添加备份任务
+func (b *BackupTaskList) Add(item *BackupTask) {
+	bs := *b
+	if len(bs) > 10 {
+		rmItem := bs[0]
+		bs = append(bs[1:], item)
+		os.Remove(rmItem.FilePath)
+	} else {
+		bs = append(bs, item)
+	}
+	*b = bs
+}
+
+var backupLog = components.NewSysLog("db_backup_")
+
+// 备份当前数据库文件 - 异步执行
 func (b *BoltdbManageController) ActionBackupCurrent() error {
+	go performBackup()
+	return nil
+}
+
+// 执行备份任务
+func performBackup() {
 	pathStr, name := path.Split(common.Conf.BDB.Path)
 	backPath := path.Join(pathStr, "backup", time.Now().Format("20060102"))
+
+	taskItem := &BackupTask{
+		Name:         "数据库备份",
+		Status:       "开始备份",
+		CreatedDate:  time.Now().Unix(),
+		CompleteDate: 0,
+	}
+
+	// 获取或创建备份任务列表
+	var taskList BackupTaskList
+	err := common.BDB.Get("backup", "task", &taskList)
+	if err != nil && err != storm.ErrNotFound {
+		backupLog.Error(fmt.Errorf("打开备份任务列表出错: %v", err))
+		return
+	}
+	if err == storm.ErrNotFound {
+		taskList = BackupTaskList{}
+	}
+	taskList.Add(taskItem)
+	err = common.BDB.Set("backup", "task", taskList)
+	if err != nil {
+		backupLog.Error(fmt.Errorf("保存备份任务出错: %v", err))
+		return
+	}
+
+	// 创建备份目录
 	if !utils.PathExists(backPath) {
 		err := os.MkdirAll(backPath, 0755)
 		if err != nil {
-			return fmt.Errorf("创建备份目录出错: %v", err)
+			taskItem.Status = fmt.Sprintf("创建备份目录出错: %v", err)
+			common.BDB.Set("backup", "task", taskList)
+			backupLog.Error(fmt.Errorf("创建备份目录出错: %v", err))
+			return
 		}
 	}
+
 	zipFileName := path.Join(backPath, fmt.Sprintf("%s.zip", time.Now().Format("20060102150405")))
 	f, err := os.OpenFile(zipFileName, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
-		return fmt.Errorf("打开ZIP文件出错: %v", err)
+		taskItem.Status = fmt.Sprintf("打开ZIP文件出错: %v", err)
+		common.BDB.Set("backup", "task", taskList)
+		backupLog.Error(fmt.Errorf("打开ZIP文件出错: %v", err))
+		return
 	}
 	defer f.Close()
+
 	zipFile := zip.NewWriter(f)
 	defer zipFile.Close()
 
 	zf, err := zipFile.Create(name)
 	if err != nil {
-		return fmt.Errorf("创建ZIP文件出错: %v", err)
+		taskItem.Status = fmt.Sprintf("创建ZIP文件出错: %v", err)
+		common.BDB.Set("backup", "task", taskList)
+		backupLog.Error(fmt.Errorf("创建ZIP文件出错: %v", err))
+		return
 	}
+
 	err = common.BDB.Bolt.View(func(tx *bbolt.Tx) error {
 		_, err := tx.WriteTo(zf)
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("写入ZIP文件出错: %v", err)
+		taskItem.Status = fmt.Sprintf("写入ZIP文件出错: %v", err)
+		common.BDB.Set("backup", "task", taskList)
+		backupLog.Error(fmt.Errorf("写入ZIP文件出错: %v", err))
+		return
 	}
+
 	zipFile.Close()
-	return nil
+
+	// 获取文件信息
+	fileInfo, err := os.Stat(zipFileName)
+	if err != nil {
+		taskItem.Status = fmt.Sprintf("获取文件信息出错: %v", err)
+		common.BDB.Set("backup", "task", taskList)
+		backupLog.Error(fmt.Errorf("获取文件信息出错: %v", err))
+		return
+	}
+
+	// 更新任务状态为完成
+	taskItem.Status = "备份完成"
+	taskItem.FilePath = zipFileName
+	taskItem.FileName = filepath.Base(zipFileName)
+	taskItem.Size = fileInfo.Size()
+	taskItem.CompleteDate = time.Now().Unix()
+	err = common.BDB.Set("backup", "task", taskList)
+	if err != nil {
+		backupLog.Error(fmt.Errorf("更新备份任务状态出错: %v", err))
+	}
+}
+
+// 获取备份任务列表
+func (b *BoltdbManageController) ActionBackupTaskList() (BackupTaskList, error) {
+	var taskList BackupTaskList
+	err := common.BDB.Get("backup", "task", &taskList)
+	if err != nil && err != storm.ErrNotFound {
+		return nil, fmt.Errorf("打开备份任务列表出错: %v", err)
+	}
+	if err == storm.ErrNotFound {
+		return BackupTaskList{}, nil
+	}
+	slices.Reverse(taskList)
+	return taskList, nil
 }
 
 // 下载现有备份文件
@@ -928,4 +1037,31 @@ func (b *BoltdbManageController) ActionBackupList() ([]BackupFileInfo, error) {
 		return 0
 	})
 	return list, nil
+}
+
+// 获取 BoltDB 状态统计信息
+func (b *BoltdbManageController) ActionStats() (utils.M, error) {
+	stats := common.BDB.Bolt.Stats()
+	return utils.M{
+		"free_page_n":     stats.FreePageN,
+		"pending_page_n":  stats.PendingPageN,
+		"free_alloc":      stats.FreeAlloc,
+		"freelist_in_use": stats.FreelistInuse,
+		"tx_n":            stats.TxN,
+		"open_tx_n":       stats.OpenTxN,
+		"tx_stats": utils.M{
+			"page_count":     stats.TxStats.PageCount,
+			"page_alloc":     stats.TxStats.PageAlloc,
+			"cursor_count":   stats.TxStats.CursorCount,
+			"node_count":     stats.TxStats.NodeCount,
+			"node_deref":     stats.TxStats.NodeDeref,
+			"rebalance":      stats.TxStats.Rebalance,
+			"rebalance_time": stats.TxStats.RebalanceTime,
+			"split":          stats.TxStats.Split,
+			"spill":          stats.TxStats.Spill,
+			"spill_time":     stats.TxStats.SpillTime,
+			"write":          stats.TxStats.Write,
+			"write_time":     stats.TxStats.WriteTime,
+		},
+	}, nil
 }

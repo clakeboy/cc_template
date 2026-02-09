@@ -29,3 +29,4 @@ go.sum
 publish
 temp
 cc_react
+__debug*
