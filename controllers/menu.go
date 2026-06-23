@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"cc_template/common"
 	"cc_template/models"
 	"encoding/json"
 	"fmt"
@@ -117,12 +118,12 @@ func (m *MenuController) ActionSave(args []byte) error {
 	orgData.Sort = params.Data.Sort
 	orgData.ModifiedBy = m.acc.Name
 	orgData.ModifiedDate = time.Now().Unix()
-	err = model.Update(orgData)
-	if params.Data.ParentId == 0 {
-		model.UpdateField(orgData, "ParentId", 0)
-		model.UpdateField(orgData, "ParentName", "")
+	err = model.Save(orgData)
+	if err != nil {
+		return err
 	}
-	return err
+	deleteMenuCache()
+	return nil
 }
 
 // 查询
@@ -147,4 +148,14 @@ func (m *MenuController) ActionFind(args []byte) (*models.MenuData, error) {
 // 删除
 func (m *MenuController) ActionDelete(args []byte) error {
 	return nil
+}
+
+// 删除菜单缓存
+func deleteMenuCache() {
+	keys, err := common.MemCache.Keys("grp_*")
+	if err == nil {
+		for _, v := range keys {
+			common.MemCache.Delete(v)
+		}
+	}
 }
