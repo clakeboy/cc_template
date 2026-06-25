@@ -4,7 +4,6 @@ import (
 	"cc_template/command"
 	"cc_template/common"
 	"fmt"
-	"os"
 	"path"
 	"testing"
 	"time"
@@ -26,16 +25,21 @@ func init() {
 		fmt.Println("初始化 SnowId 错误：", err)
 		return
 	}
-	//初始化BDB微型数据库
-	common.BDB, err = storm.Open("../db/sys_bak.db")
-	if err != nil {
-		fmt.Println("open storm database error:", err)
-		os.Exit(-1)
+}
+
+func initTestDB() {
+	if common.BDB == nil {
+		var err error
+		common.BDB, err = storm.Open("../db/sys.db")
+		if err != nil {
+			panic(fmt.Sprintf("open storm database error: %v", err))
+		}
 	}
 }
 
 func TestBolt(t *testing.T) {
-	export("menu|MenuData", nil, 1, 100)
+	initTestDB()
+	export(common.BDB, "menu|MenuData", nil, 1, 100)
 	var exportList Export
 	err := common.BDB.Get("export", "task", &exportList)
 	if err != nil {
@@ -46,6 +50,7 @@ func TestBolt(t *testing.T) {
 }
 
 func TestData(t *testing.T) {
+	initTestDB()
 	// list, err := getChildData(common.BDB, "menu")
 	name := []string{"account", "AccountData", "__storm_index_Id"}
 	err := common.BDB.Bolt.View(func(tx *bbolt.Tx) error {

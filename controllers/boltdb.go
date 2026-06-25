@@ -95,9 +95,50 @@ func NewBoltdbManageController(c *gin.Context) *BoltdbManageController {
 	return &BoltdbManageController{c: c}
 }
 
+type DbItem struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+// 获取所选的数据库实例，默认返回全局 common.BDB
+func (b *BoltdbManageController) getDB(dbName string) *storm.DB {
+	return common.GetDB(dbName)
+}
+
+// 获取可用数据库文件列表
+func (b *BoltdbManageController) ActionDbList(args []byte) ([]DbItem, error) {
+	var list []DbItem
+	if common.Conf.BDB.List != nil {
+		for name, path := range common.Conf.BDB.List {
+			list = append(list, DbItem{
+				Name: name,
+				Path: path,
+			})
+		}
+	} else {
+		// 回退方案：扫描本地数据库目录
+		files, err := os.ReadDir("./db")
+		if err == nil {
+			for _, f := range files {
+				if !f.IsDir() && strings.HasSuffix(f.Name(), ".db") {
+					list = append(list, DbItem{
+						Name: f.Name(),
+						Path: filepath.Join("./db", f.Name()),
+					})
+				}
+			}
+		}
+	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].Name < list[j].Name
+	})
+	return list, nil
+}
+
 // 获取表数据
 func (b *BoltdbManageController) ActionQuery(args []byte) (utils.M, error) {
 	var params struct {
+		Db     string  `json:"db"`
 		Table  string  `json:"table"`  //table 名
 		Page   int     `json:"page"`   //页
 		Number int     `json:"number"` //记录数
@@ -108,9 +149,10 @@ func (b *BoltdbManageController) ActionQuery(args []byte) (utils.M, error) {
 	if err != nil {
 		return nil, err
 	}
+	db := b.getDB(params.Db)
 	var header HeaderList
 	var headList []string
-	list, err := getTableData(common.BDB, strings.Split(params.Table, "|"), (params.Page-1)*params.Number, params.Number, params.Query, true)
+	list, err := getTableData(db, strings.Split(params.Table, "|"), (params.Page-1)*params.Number, params.Number, params.Query, true)
 	for _, row := range list {
 		for k := range row {
 			if !slices.Contains(headList, k) {
@@ -125,7 +167,7 @@ func (b *BoltdbManageController) ActionQuery(args []byte) (utils.M, error) {
 	if err != nil {
 		return nil, err
 	}
-	count, err := getTableCount(common.BDB, strings.Split(params.Table, "|"))
+	count, err := getTableCount(db, strings.Split(params.Table, "|"))
 	if err != nil {
 		count = 0
 	}
@@ -140,6 +182,7 @@ func (b *BoltdbManageController) ActionQuery(args []byte) (utils.M, error) {
 // 保存修改数据
 func (b *BoltdbManageController) ActionSave(args []byte) error {
 	var params struct {
+		Db    string `json:"db"`
 		Table string `json:"table"` //table
 		Id    int    `json:"id"`    //数据ID
 		Data  string `json:"data"`
@@ -154,13 +197,15 @@ func (b *BoltdbManageController) ActionSave(args []byte) error {
 	if err != nil {
 		return fmt.Errorf("数据ID转换错误: %v", err)
 	}
-	err = setTableData(common.BDB, strings.Split(params.Table, "|"), key, []byte(params.Data))
+	db := b.getDB(params.Db)
+	err = setTableData(db, strings.Split(params.Table, "|"), key, []byte(params.Data))
 	return err
 }
 
 // 删除数据
 func (b *BoltdbManageController) ActionDelete(args []byte) error {
 	var params struct {
+		Db     string `json:"db"`
 		Table  string `json:"table"`   //table
 		IdList []int  `json:"id_list"` //数据ID
 	}
@@ -170,7 +215,8 @@ func (b *BoltdbManageController) ActionDelete(args []byte) error {
 		return err
 	}
 	tables := strings.Split(params.Table, "|")
-	err = common.BDB.Bolt.Update(func(tx *bbolt.Tx) error {
+	db := b.getDB(params.Db)
+	err = db.Bolt.Update(func(tx *bbolt.Tx) error {
 		var b *bbolt.Bucket
 		for _, v := range tables {
 			if b != nil {
@@ -206,6 +252,7 @@ func (b *BoltdbManageController) ActionDelete(args []byte) error {
 // 删除整表
 func (b *BoltdbManageController) ActionDeleteBucket(args []byte) error {
 	var params struct {
+		Db   string `json:"db"`
 		Name string `json:"name"`
 	}
 	err := json.Unmarshal(args, &params)
@@ -213,7 +260,8 @@ func (b *BoltdbManageController) ActionDeleteBucket(args []byte) error {
 		return err
 	}
 
-	err = common.BDB.Bolt.Update(func(tx *bbolt.Tx) error {
+	db := b.getDB(params.Db)
+	err = db.Bolt.Update(func(tx *bbolt.Tx) error {
 		return tx.DeleteBucket([]byte(params.Name))
 	})
 	return err
@@ -222,17 +270,19 @@ func (b *BoltdbManageController) ActionDeleteBucket(args []byte) error {
 // 得到所有数据表列表
 func (b *BoltdbManageController) ActionDatabases(args []byte) ([]*DatabaseData, error) {
 	var params struct {
+		Db   string `json:"db"`
 		Name string `json:"name"`
 	}
 	err := json.Unmarshal(args, &params)
 	if err != nil {
 		return nil, err
 	}
+	db := b.getDB(params.Db)
 	var res []string
 	if params.Name == "" {
-		res, err = getBoltdbList(common.BDB)
+		res, err = getBoltdbList(db)
 	} else {
-		res, err = getChildData(common.BDB, params.Name)
+		res, err = getChildData(db, params.Name)
 	}
 	if err != nil {
 		return nil, err
@@ -240,9 +290,9 @@ func (b *BoltdbManageController) ActionDatabases(args []byte) ([]*DatabaseData, 
 	var list []*DatabaseData
 	for _, v := range res {
 		var child []*DatabaseData
-		childRes, _ := getChildData(common.BDB, v)
+		childRes, _ := getChildData(db, v)
 		for _, vv := range childRes {
-			indexList, _ := getTableIndex(common.BDB, []string{v, vv})
+			indexList, _ := getTableIndex(db, []string{v, vv})
 			var indexChild []*DatabaseData
 			for _, vvv := range indexList {
 				indexChild = append(indexChild, &DatabaseData{
@@ -583,6 +633,7 @@ type ExportTask struct {
 // 导出数据为JSON
 func (b *BoltdbManageController) ActionExport(args []byte) ([]byte, error) {
 	var params struct {
+		Db     string  `json:"db"`
 		Table  string  `json:"table"`  //table 名
 		Page   int     `json:"page"`   //页
 		Number int     `json:"number"` //记录数
@@ -594,13 +645,14 @@ func (b *BoltdbManageController) ActionExport(args []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	go export(params.Table, params.Query, params.Page, params.Number)
+	db := b.getDB(params.Db)
+	go export(db, params.Table, params.Query, params.Page, params.Number)
 
 	return nil, nil
 }
 
 // 执行导出任务
-func export(table string, query []Query, page, number int) {
+func export(db *storm.DB, table string, query []Query, page, number int) {
 	taskItem := &ExportTask{
 		Name:          "导出数据表:" + table,
 		Table:         table,
@@ -630,7 +682,7 @@ func export(table string, query []Query, page, number int) {
 	tableArr := strings.Split(table, "|")
 
 	tableName := tableArr[len(tableArr)-1]
-	list, err := getTableData(common.BDB, tableArr, (page-1)*number, number, query, false)
+	list, err := getTableData(db, tableArr, (page-1)*number, number, query, false)
 	if err != nil {
 		taskItem.Status = fmt.Sprintf("打开导出数据列表出错：%v", err)
 		common.BDB.Set("export", "task", exportList)
@@ -710,6 +762,7 @@ func (b *BoltdbManageController) ActionTaskList(args []byte) (Export, error) {
 // 数据导入
 func (b *BoltdbManageController) ActionImport(args []byte) error {
 	var params struct {
+		Db    string    `json:"db"`
 		Table []string  `json:"table"` //表名
 		Data  []utils.M `json:"data"`  //数据列表
 	}
@@ -719,7 +772,8 @@ func (b *BoltdbManageController) ActionImport(args []byte) error {
 		return err
 	}
 
-	err = common.BDB.Bolt.Update(func(tx *bbolt.Tx) error {
+	db := b.getDB(params.Db)
+	err = db.Bolt.Update(func(tx *bbolt.Tx) error {
 		var b *bbolt.Bucket
 		for _, v := range params.Table {
 			if b != nil {
@@ -1040,8 +1094,13 @@ func (b *BoltdbManageController) ActionBackupList() ([]BackupFileInfo, error) {
 }
 
 // 获取 BoltDB 状态统计信息
-func (b *BoltdbManageController) ActionStats() (utils.M, error) {
-	stats := common.BDB.Bolt.Stats()
+func (b *BoltdbManageController) ActionStats(args []byte) (utils.M, error) {
+	var params struct {
+		Db string `json:"db"`
+	}
+	_ = json.Unmarshal(args, &params)
+	db := b.getDB(params.Db)
+	stats := db.Bolt.Stats()
 	return utils.M{
 		"free_page_n":     stats.FreePageN,
 		"pending_page_n":  stats.PendingPageN,

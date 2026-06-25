@@ -1,9 +1,10 @@
 package common
 
 import (
+	"os"
+
 	"github.com/clakeboy/golib/ckdb"
 	"gopkg.in/yaml.v3"
-	"os"
 )
 
 // Config 总配置结构
@@ -33,7 +34,8 @@ type CookieConfig struct {
 
 // BoltDBConfig boltdb 配置
 type BoltDBConfig struct {
-	Path string `json:"path" yaml:"path"`
+	Path string            `json:"path" yaml:"path"`
+	List map[string]string `json:"list" yaml:"list"`
 }
 
 // HttpProxyConfig HTTP代理信息
