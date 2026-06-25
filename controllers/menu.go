@@ -5,6 +5,7 @@ import (
 	"cc_template/models"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/clakeboy/storm-rev"
@@ -102,7 +103,12 @@ func (m *MenuController) ActionSave(args []byte) error {
 	if params.Data.Id == 0 {
 		params.Data.CreatedDate = time.Now().Unix()
 		params.Data.CreatedBy = m.acc.Name
-		return model.Save(params.Data)
+		err = model.Save(params.Data)
+		if err != nil {
+			return err
+		}
+		deleteMenuCache()
+		return nil
 	}
 
 	orgData, err := model.GetById(params.Data.Id)
@@ -147,6 +153,27 @@ func (m *MenuController) ActionFind(args []byte) (*models.MenuData, error) {
 
 // 删除
 func (m *MenuController) ActionDelete(args []byte) error {
+	return nil
+}
+
+// 导出菜单数据到 controllers/setup/menu.json
+func (m *MenuController) ActionExport(args []byte) error {
+	model := models.NewMenuModel(nil)
+	model.SetOrder("Id", "ASC")
+	list, err := model.List(1, 1000)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(list, "", "    ")
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile("controllers/setup/menu.json", data, 0644)
+	if err != nil {
+		return fmt.Errorf("写入文件失败: %v", err)
+	}
 	return nil
 }
 

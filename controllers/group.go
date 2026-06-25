@@ -73,7 +73,7 @@ func (g *GroupController) ActionSave(args []byte) error {
 	orgData.MenuList = params.Data.MenuList
 	orgData.ModifiedBy = g.acc.Name
 	orgData.ModifiedDate = time.Now().Unix()
-	err = model.Update(orgData)
+	err = model.Save(orgData)
 	if err == nil {
 		common.MemCache.Delete("grp_" + orgData.Name)
 	}
