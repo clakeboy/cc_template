@@ -80,6 +80,8 @@ func initService() {
 		fmt.Println("open storm database error:", err)
 		os.Exit(-1)
 	}
+	// 注册主数据库连接映射
+	common.DBMap["sys"] = common.BDB
 
 	//初始化HTTP WEB服务
 	httpServer = router.NewHttpServer(common.Conf.System.Ip+":"+common.Conf.System.Port, command.CmdDebug, command.CmdCross, command.CmdPProf)
