@@ -38,6 +38,7 @@ func initTestDB() {
 }
 
 func TestBolt(t *testing.T) {
+	t.Skip("调试用例依赖本地 ../db/sys.db，常规测试使用独立临时数据库")
 	initTestDB()
 	export(common.BDB, "menu|MenuData", nil, 1, 100)
 	var exportList Export
@@ -50,6 +51,7 @@ func TestBolt(t *testing.T) {
 }
 
 func TestData(t *testing.T) {
+	t.Skip("调试用例依赖本地 ../db/sys.db，常规测试使用独立临时数据库")
 	initTestDB()
 	// list, err := getChildData(common.BDB, "menu")
 	name := []string{"account", "AccountData", "__storm_index_Id"}
