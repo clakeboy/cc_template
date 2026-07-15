@@ -10,7 +10,7 @@ import (
 
 	"github.com/clakeboy/golib/components/snowflake"
 	"github.com/clakeboy/golib/utils"
-	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/v2"
 	"go.etcd.io/bbolt"
 )
 

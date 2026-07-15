@@ -3,7 +3,7 @@ package models
 import (
 	"cc_template/common"
 
-	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/v2"
 )
 
 // UserData 用户数据

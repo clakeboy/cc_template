@@ -4,8 +4,8 @@ import (
 	"cc_template/common"
 	"slices"
 
-	"github.com/clakeboy/storm-rev"
-	"github.com/clakeboy/storm-rev/q"
+	"github.com/clakeboy/storm-rev/v2"
+	"github.com/clakeboy/storm-rev/v2/q"
 )
 
 // 后台菜单功能

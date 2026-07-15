@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/clakeboy/storm-rev/q"
+	"github.com/clakeboy/storm-rev/v2/q"
 	"github.com/gin-gonic/gin"
 )
 

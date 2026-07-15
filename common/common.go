@@ -8,7 +8,7 @@ import (
 
 	"github.com/clakeboy/golib/components"
 	"github.com/clakeboy/golib/components/snowflake"
-	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/v2"
 )
 
 var HtmlFiles embed.FS

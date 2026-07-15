@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/clakeboy/golib/utils"
-	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/v2"
 	"github.com/gin-gonic/gin"
 )
 

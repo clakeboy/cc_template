@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/clakeboy/golib/utils"
-	"github.com/clakeboy/storm-rev"
-	"github.com/clakeboy/storm-rev/q"
+	"github.com/clakeboy/storm-rev/v2"
+	"github.com/clakeboy/storm-rev/v2/q"
 	"github.com/tidwall/gjson"
 )
 

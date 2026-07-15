@@ -8,7 +8,7 @@ import (
 	"cc_template/models"
 
 	"github.com/clakeboy/golib/utils"
-	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/v2"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
 )
@@ -295,7 +295,7 @@ func TestBoltdbMetadataEndpointsAndParsing(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "json", getRes2["codec"])
 	require.Equal(t, int64(456), getRes2["Idcounter"])
-	
+
 	schemaRaw2, err := json.Marshal(getRes2["schema"])
 	require.NoError(t, err)
 	var schemaVal map[string]any
@@ -425,4 +425,3 @@ func TestBoltdbSQLDefaultLimit(t *testing.T) {
 	require.Len(t, res7.List, 5)
 	require.Equal(t, 105, res7.Count)
 }
-

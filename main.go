@@ -11,7 +11,7 @@ import (
 
 	"github.com/clakeboy/golib/components"
 	"github.com/clakeboy/golib/utils"
-	"github.com/clakeboy/storm-rev"
+	"github.com/clakeboy/storm-rev/v2"
 )
 
 var sigs chan os.Signal

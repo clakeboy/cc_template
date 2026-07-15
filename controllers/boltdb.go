@@ -27,8 +27,8 @@ import (
 
 	"github.com/clakeboy/golib/components"
 	"github.com/clakeboy/golib/utils"
-	"github.com/clakeboy/storm-rev"
-	"github.com/clakeboy/storm-rev/index"
+	"github.com/clakeboy/storm-rev/v2"
+	"github.com/clakeboy/storm-rev/v2/index"
 	"github.com/gin-gonic/gin"
 	"go.etcd.io/bbolt"
 )
@@ -2447,7 +2447,7 @@ func generateGoStruct(schema *localStoredSchema) (string, error) {
 		if len(stormTags) > 0 {
 			tags = append(tags, fmt.Sprintf(`storm:"%s"`, strings.Join(stormTags, ",")))
 		}
-		
+
 		jsonName := f.JSON
 		if jsonName == "" {
 			jsonName = f.Name
@@ -2525,6 +2525,3 @@ func (b *BoltdbManageController) ActionReIndex(args []byte) error {
 
 	return node.ReIndex(nil)
 }
-
-
-
