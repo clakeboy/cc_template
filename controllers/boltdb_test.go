@@ -4,7 +4,9 @@ import (
 	"cc_template/command"
 	"cc_template/common"
 	"fmt"
+	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -38,7 +40,6 @@ func initTestDB() {
 }
 
 func TestBolt(t *testing.T) {
-	t.Skip("调试用例依赖本地 ../db/sys.db，常规测试使用独立临时数据库")
 	initTestDB()
 	export(common.BDB, "menu|MenuData", nil, 1, 100)
 	var exportList Export
@@ -51,7 +52,6 @@ func TestBolt(t *testing.T) {
 }
 
 func TestData(t *testing.T) {
-	t.Skip("调试用例依赖本地 ../db/sys.db，常规测试使用独立临时数据库")
 	initTestDB()
 	// list, err := getChildData(common.BDB, "menu")
 	name := []string{"account", "AccountData", "__storm_index_Id"}
@@ -89,4 +89,30 @@ func TestName(t *testing.T) {
 	pathstr, name := path.Split(common.Conf.BDB.Path)
 	fmt.Println(path.Join(pathstr, "backup", time.Now().Format("20060102"), name))
 
+}
+
+func TestResolveBackupDownloadPath(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "db", "backup")
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(root, "20260731", "backup.zip")
+	if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("backup"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := resolveBackupDownloadPath(filepath.Join("backup", "20260731", "backup.zip"), []string{root})
+	if err != nil {
+		t.Fatalf("resolve relative backup path: %v", err)
+	}
+	if got != file {
+		t.Fatalf("resolved path = %q, want %q", got, file)
+	}
+
+	if _, err := resolveBackupDownloadPath(filepath.Join("..", "outside.zip"), []string{root}); err == nil {
+		t.Fatal("path outside backup directory was accepted")
+	}
 }

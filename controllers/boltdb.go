@@ -1886,16 +1886,79 @@ func (b *BoltdbManageController) ActionBackupTaskList() (BackupTaskList, error) 
 
 // 下载现有备份文件
 func (b *BoltdbManageController) ActionDownloadBackup() {
-	filePath := b.c.Query("f")
-	if filePath == "" {
-		b.c.JSON(400, gin.H{"error": "缺少文件路径参数"})
-		return
-	}
-	if !utils.PathExists(filePath) {
-		b.c.JSON(404, gin.H{"error": "文件不存在"})
+	requestedPath := b.c.Query("f")
+	filePath, err := resolveBackupDownloadPath(requestedPath, configuredBackupRoots())
+	if err != nil {
+		if requestedPath == "" {
+			b.c.JSON(400, gin.H{"error": "缺少文件路径参数"})
+		} else {
+			b.c.JSON(404, gin.H{"error": "文件不存在"})
+		}
 		return
 	}
 	b.c.FileAttachment(filePath, path.Base(filePath))
+}
+
+// configuredBackupRoots returns the backup directories for every configured Bolt database.
+func configuredBackupRoots() []string {
+	dbPaths := []string{common.Conf.BDB.Path}
+	for _, dbPath := range common.Conf.BDB.List {
+		dbPaths = append(dbPaths, dbPath)
+	}
+
+	roots := make([]string, 0, len(dbPaths))
+	seen := make(map[string]struct{}, len(dbPaths))
+	for _, dbPath := range dbPaths {
+		if dbPath == "" {
+			continue
+		}
+		root, err := filepath.Abs(filepath.Join(filepath.Dir(dbPath), "backup"))
+		if err != nil {
+			continue
+		}
+		root = filepath.Clean(root)
+		if _, ok := seen[root]; ok {
+			continue
+		}
+		seen[root] = struct{}{}
+		roots = append(roots, root)
+	}
+	return roots
+}
+
+// resolveBackupDownloadPath accepts both the relative paths returned by
+// ActionBackupList (backup/...) and older task paths, but only below a
+// configured backup directory.
+func resolveBackupDownloadPath(requested string, roots []string) (string, error) {
+	if requested == "" {
+		return "", fmt.Errorf("backup file path is empty")
+	}
+
+	for _, root := range roots {
+		rootAbs, err := filepath.Abs(root)
+		if err != nil {
+			continue
+		}
+		rootAbs = filepath.Clean(rootAbs)
+
+		candidates := []string{requested}
+		if !filepath.IsAbs(requested) {
+			candidates = append(candidates, filepath.Join(filepath.Dir(rootAbs), requested))
+		}
+		for _, candidate := range candidates {
+			candidateAbs, err := filepath.Abs(candidate)
+			if err != nil || !isPathWithin(rootAbs, candidateAbs) || !utils.PathExists(candidateAbs) {
+				continue
+			}
+			return candidateAbs, nil
+		}
+	}
+	return "", fmt.Errorf("backup file not found")
+}
+
+func isPathWithin(root, target string) bool {
+	rel, err := filepath.Rel(root, target)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 type BackupFileInfo struct {
