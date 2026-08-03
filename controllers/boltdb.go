@@ -1782,7 +1782,11 @@ func performBackup(dbName string) {
 		}
 	}
 
-	zipFileName := path.Join(backPath, fmt.Sprintf("%s.zip", time.Now().Format("20060102150405")))
+	zipName := time.Now().Format("20060102150405")
+	if dbName != "" {
+		zipName = fmt.Sprintf("%s_%s", dbName, zipName)
+	}
+	zipFileName := path.Join(backPath, zipName+".zip")
 	f, err := os.OpenFile(zipFileName, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
 		taskItem.Status = fmt.Sprintf("打开ZIP文件出错: %v", err)
@@ -1884,6 +1888,74 @@ func (b *BoltdbManageController) ActionBackupTaskList() (BackupTaskList, error) 
 	return taskList, nil
 }
 
+// 删除备份记录及对应的备份文件
+func (b *BoltdbManageController) ActionDeleteBackup(args []byte) error {
+	var params struct {
+		FileName string `json:"file_name"`
+	}
+	err := json.Unmarshal(args, &params)
+	if err != nil {
+		return err
+	}
+	if params.FileName == "" {
+		return fmt.Errorf("缺少文件名参数")
+	}
+
+	var taskList BackupTaskList
+	err = common.BDB.Get("backup", "task", &taskList)
+	if err != nil && err != storm.ErrNotFound {
+		return fmt.Errorf("打开备份任务列表出错: %v", err)
+	}
+	if err == storm.ErrNotFound {
+		return fmt.Errorf("备份记录不存在")
+	}
+
+	var rmItem *BackupTask
+	newList := make(BackupTaskList, 0, len(taskList))
+	for _, item := range taskList {
+		if item.FileName == params.FileName {
+			rmItem = item
+			continue
+		}
+		newList = append(newList, item)
+	}
+	if rmItem == nil {
+		return fmt.Errorf("备份记录不存在")
+	}
+
+	// 删除备份文件，只允许删除已配置备份目录内的文件
+	if rmItem.FilePath != "" && utils.PathExists(rmItem.FilePath) {
+		targetAbs, err := filepath.Abs(rmItem.FilePath)
+		if err != nil {
+			return fmt.Errorf("解析备份文件路径出错: %v", err)
+		}
+		rootAllowed := false
+		for _, root := range configuredBackupRoots() {
+			rootAbs, err := filepath.Abs(root)
+			if err != nil {
+				continue
+			}
+			if isPathWithin(filepath.Clean(rootAbs), targetAbs) {
+				rootAllowed = true
+				break
+			}
+		}
+		if !rootAllowed {
+			return fmt.Errorf("不允许删除备份目录外的文件")
+		}
+		err = os.Remove(rmItem.FilePath)
+		if err != nil {
+			return fmt.Errorf("删除备份文件出错: %v", err)
+		}
+	}
+
+	err = common.BDB.Set("backup", "task", newList)
+	if err != nil {
+		return fmt.Errorf("保存备份任务列表出错: %v", err)
+	}
+	return nil
+}
+
 // 下载现有备份文件
 func (b *BoltdbManageController) ActionDownloadBackup() {
 	requestedPath := b.c.Query("f")
@@ -1899,7 +1971,7 @@ func (b *BoltdbManageController) ActionDownloadBackup() {
 	b.c.FileAttachment(filePath, path.Base(filePath))
 }
 
-// configuredBackupRoots returns the backup directories for every configured Bolt database.
+// 获取所有已配置 Bolt 数据库对应的备份目录。
 func configuredBackupRoots() []string {
 	dbPaths := []string{common.Conf.BDB.Path}
 	for _, dbPath := range common.Conf.BDB.List {
@@ -1926,9 +1998,7 @@ func configuredBackupRoots() []string {
 	return roots
 }
 
-// resolveBackupDownloadPath accepts both the relative paths returned by
-// ActionBackupList (backup/...) and older task paths, but only below a
-// configured backup directory.
+// 解析备份下载路径，兼容列表返回的相对路径和旧任务路径，且只允许访问已配置的备份目录。
 func resolveBackupDownloadPath(requested string, roots []string) (string, error) {
 	if requested == "" {
 		return "", fmt.Errorf("backup file path is empty")
@@ -1956,6 +2026,7 @@ func resolveBackupDownloadPath(requested string, roots []string) (string, error)
 	return "", fmt.Errorf("backup file not found")
 }
 
+// 判断目标路径是否位于指定根目录内。
 func isPathWithin(root, target string) bool {
 	rel, err := filepath.Rel(root, target)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
