@@ -37,7 +37,7 @@ func (m *MenuController) ActionQuery(args []byte) ([]*models.MenuData, error) {
 		return nil, err
 	}
 
-	where := explainQueryCondition(params.Query)
+	where := ExplainQueryCondition(params.Query)
 	where = append(where, q.Eq("ParentId", 0))
 	model := models.NewMenuModel(nil)
 	model.SetOrder("Sort", "ASC")
@@ -174,6 +174,56 @@ func (m *MenuController) ActionExport(args []byte) error {
 	if err != nil {
 		return fmt.Errorf("写入文件失败: %v", err)
 	}
+	return nil
+}
+
+// ActionReloadSetup 从 controllers/setup/menu.json 重新加载菜单数据并把所有权限赋给管理员组 admin
+func (m *MenuController) ActionReloadSetup(args []byte) error {
+	data, err := os.ReadFile("controllers/setup/menu.json")
+	if err != nil {
+		return fmt.Errorf("读取 setup/menu.json 失败: %v", err)
+	}
+
+	var menuList []*models.MenuData
+	err = json.Unmarshal(data, &menuList)
+	if err != nil {
+		return fmt.Errorf("解析 menu.json 错误: %v", err)
+	}
+
+	model := models.NewMenuModel(nil)
+	// 清空原有的菜单数据
+	existingList, err := model.List(1, 1000)
+	if err == nil {
+		for _, item := range existingList {
+			_ = model.DeleteStruct(item)
+		}
+	}
+
+	var menuIds []int
+	for _, item := range menuList {
+		err = model.Save(item)
+		if err != nil {
+			return fmt.Errorf("保存菜单数据错误: %v", err)
+		}
+		menuIds = append(menuIds, item.Id)
+	}
+	model.Reindex()
+
+	// 把所有菜单权限更新到 admin 管理组
+	grpModel := models.NewGroupModel(nil)
+	var grpData models.GroupData
+	err = grpModel.One("Name", "admin", &grpData)
+	if err == nil {
+		grpData.MenuList = menuIds
+		grpData.ModifiedDate = time.Now().Unix()
+		grpData.ModifiedBy = m.acc.Name
+		_ = grpModel.Save(&grpData)
+		common.MemCache.Delete("grp_" + grpData.Name)
+	} else {
+		fmt.Printf("ActionReloadSetup: get admin group failed: %v\n", err)
+	}
+
+	deleteMenuCache()
 	return nil
 }
 

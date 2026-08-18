@@ -17,7 +17,7 @@ type Condition struct {
 	Value interface{} `json:"value"`
 }
 
-func explainQueryCondition(conditions []*Condition) []q.Matcher {
+func ExplainQueryCondition(conditions []*Condition) []q.Matcher {
 	var matcher []q.Matcher
 	for _, v := range conditions {
 		var match q.Matcher

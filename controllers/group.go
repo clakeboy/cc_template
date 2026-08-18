@@ -37,7 +37,7 @@ func (g *GroupController) ActionQuery(args []byte) (*models.QueryResult[models.G
 	if err != nil {
 		return nil, err
 	}
-	where := explainQueryCondition(params.Query)
+	where := ExplainQueryCondition(params.Query)
 	model := models.NewGroupModel(nil)
 	res, err := model.Query(params.Page, params.Number, where...)
 	if err != nil {
@@ -100,4 +100,9 @@ func (g *GroupController) ActionFind(args []byte) (*models.GroupData, error) {
 // 删除
 func (g *GroupController) ActionDelete(args []byte) error {
 	return nil
+}
+
+// 重建索引
+func (g *GroupController) ActionReindex() error {
+	return models.NewGroupModel(nil).Reindex()
 }
