@@ -36,7 +36,7 @@ func (m *AccountController) ActionQuery(args []byte) (*models.QueryResult[models
 	if err != nil {
 		return nil, err
 	}
-	where := ExplainQueryCondition(params.Query)
+	where := ExplainQueryCondition(params.Query, new(models.AccountData))
 	model := models.NewAccountModel(nil)
 	res, err := model.Query(params.Page, params.Number, where...)
 	if err != nil {

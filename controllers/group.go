@@ -37,7 +37,7 @@ func (g *GroupController) ActionQuery(args []byte) (*models.QueryResult[models.G
 	if err != nil {
 		return nil, err
 	}
-	where := ExplainQueryCondition(params.Query)
+	where := ExplainQueryCondition(params.Query, new(models.GroupData))
 	model := models.NewGroupModel(nil)
 	res, err := model.Query(params.Page, params.Number, where...)
 	if err != nil {

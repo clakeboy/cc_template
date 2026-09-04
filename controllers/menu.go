@@ -37,7 +37,7 @@ func (m *MenuController) ActionQuery(args []byte) ([]*models.MenuData, error) {
 		return nil, err
 	}
 
-	where := ExplainQueryCondition(params.Query)
+	where := ExplainQueryCondition(params.Query, new(models.MenuData))
 	where = append(where, q.Eq("ParentId", 0))
 	model := models.NewMenuModel(nil)
 	model.SetOrder("Sort", "ASC")
