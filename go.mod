@@ -4,8 +4,7 @@ go 1.25.0
 
 require (
 	github.com/clakeboy/golib v1.7.8
-	github.com/clakeboy/storm-rev v1.3.0
-	github.com/clakeboy/storm-rev/v2 v2.3.0
+	github.com/clakeboy/storm-rev/v2 v2.5.2
 	github.com/gin-contrib/gzip v1.0.1
 	github.com/gin-gonic/gin v1.9.1
 	github.com/stretchr/testify v1.11.1
