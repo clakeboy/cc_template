@@ -179,13 +179,13 @@ func (m *MenuController) ActionExport(args []byte) error {
 
 // ActionReloadSetup 从 controllers/setup/menu.json 重新加载菜单数据并把所有权限赋给管理员组 admin
 func (m *MenuController) ActionReloadSetup(args []byte) error {
-	data, err := os.ReadFile("controllers/setup/menu.json")
-	if err != nil {
-		return fmt.Errorf("读取 setup/menu.json 失败: %v", err)
+	// 全量重置菜单属于高危操作，只允许系统管理员执行
+	if m.acc == nil || m.acc.Manage != 1 {
+		return fmt.Errorf("没有权限")
 	}
 
 	var menuList []*models.MenuData
-	err = json.Unmarshal(data, &menuList)
+	err := json.Unmarshal(menuData, &menuList)
 	if err != nil {
 		return fmt.Errorf("解析 menu.json 错误: %v", err)
 	}
