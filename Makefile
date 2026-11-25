@@ -40,9 +40,15 @@ all:
 		" -o $(OUTPUTDIR)$(OUTNAME) main.go
 
 	@if [ "$(OS)" != "darwin" ]; then\
-		upx -9 $(OUTPUTDIR)$(OUTNAME); \
+		upx --best --lzma $(OUTPUTDIR)$(OUTNAME); \
 	fi
 
-.PHONY : clean
+mac:
+	$(MAKE) all OS=darwin ARCH=arm64
+
+win:
+	$(MAKE) all OS=windows ARCH=amd64
+
+.PHONY : clean mac
 clean:
 	rm -f $(name)
